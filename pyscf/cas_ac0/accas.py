@@ -11,16 +11,14 @@ import scipy
 import numpy as np
 from pyscf import ao2mo, lib
 
+
 # disable 'Too many arguments'
 # pylint: disable=R0913
 # disable 'Too many local variables'
 # pylint: disable=R0914
 # disable redefined-outer-name (Redefining name 'ac0_not_found' from outer scope)
 # pylint: disable=W0621
-try:
-    from pyscf.cas_ac0 import ac0_lib
-    from ac0_lib import accas_lib as ac0_lib
-except (ModuleNotFoundError, ImportError) as ac0_not_found:
+def _build_lib():
     import subprocess
     import os
 
@@ -43,8 +41,7 @@ except (ModuleNotFoundError, ImportError) as ac0_not_found:
     )
     try:
         # pylint: disable=C0412
-        from pyscf.cas_ac0 import ac0_lib
-        from ac0_lib import accas_lib as ac0_lib
+        from pyscf.cas_ac0.ac0_lib import accas_lib as ac0
     except (ModuleNotFoundError, ImportError) as ac0_not_found:
         raise RuntimeError(
             "Cannot import ac0_lib, most likely due to an f2py compilation failure. "
@@ -53,6 +50,12 @@ except (ModuleNotFoundError, ImportError) as ac0_not_found:
         ) from ac0_not_found
 
     os.chdir(previous_path)
+
+
+try:
+    from pyscf.cas_ac0.ac0_lib import accas_lib as ac0
+except (ModuleNotFoundError, ImportError) as ac0_not_found:
+    _build_lib()
 
 
 def _get_no_trafo_mask(act_rdm1, orbitals, core_mask, active_mask):
@@ -84,7 +87,7 @@ def _get_xone(hcore, mos):
 
 
 def get_cas_ac0_energy(mf, mc):
-    nvirt = mc.mo_coeff.shape[0] - mc.ncore - mycas.ncas
+    nvirt = mc.mo_coeff.shape[0] - mc.ncore - mc.ncas
     active_mask = [False] * mc.ncore + [True] * mc.ncas + [False] * nvirt
     dm1, dm2 = mc.fcisolver.make_rdm12(mc.ci, mc.ncas, mc.nelecas)
     core_mask = [((not active_mask[i]) and o > 0) for i, o in enumerate(mf.mo_occ)]
@@ -129,21 +132,21 @@ def get_ac0_energy(
         dm1, orbitals, core_mask, active_mask
     )
 
-    rdm2_nat = ac0_lib.trrdm2(dm2, ucas.T, ucas.shape[0])  # transform to NO basis
+    rdm2_nat = ac0.trrdm2(dm2, ucas.T, ucas.shape[0])  # transform to NO basis
 
     integrals = integrals.reshape([nbasis] * 4)
-    twono = ac0_lib.get_two_el(
-        integrals, ac0_lib.get_two_el_size(nbasis), nbasis
+    twono = ac0.get_two_el(
+        integrals, ac0.get_two_el_size(nbasis), nbasis
     )  # NO basis
     occ = nat_occ / 2
 
-    rdm2act = ac0_lib.get_rdm2_act(
-        ac0_lib.getnrdm2act(cas_orbs), rdm2_nat, cas_orbs
+    rdm2act = ac0.get_rdm2_act(
+        ac0.getnrdm2act(cas_orbs), rdm2_nat, cas_orbs
     )  # NO basis
 
     xone = _get_xone(h_core, natorbs)  # NO basis
 
-    e_tot = ac0_lib.accas(
+    e_tot = ac0.accas(
         e_nuc,
         twono,
         np.eye(nbasis),  # still a unit matrix because everything is in NO basis
