@@ -16,9 +16,6 @@ from pyscf.cas_ac0.ac0_lib import accas_lib as ac0
 # pylint: disable=R0913
 # disable 'Too many local variables'
 # pylint: disable=R0914
-# disable redefined-outer-name (Redefining name 'ac0_not_found' from outer scope)
-# pylint: disable=W0621
-
 # disable C0103: Argument name ... doesn't conform to snake_case naming style
 # pylint: disable=C0103
 
@@ -51,7 +48,7 @@ def get_cas_ac0_energy(mf, mc):
     rdm2act = ac0.get_rdm2_act(ac0.getnrdm2act(cas_orbs), dm2, cas_orbs)  # NO basis
 
     xone = _get_xone(mf.get_hcore(), natural_orbitals)
-    e_tot, e_corr = ac0.accas(
+    e_tot, _ = ac0.accas(
         mf.energy_nuc(),
         twono,
         np.eye(nbasis),  # UCAS is a unit matrix because everything is in NO basis
@@ -92,13 +89,11 @@ def get_ac0_corr_energy_from_file(filename: str):
         integrals, ac0.get_two_el_size(nbasis), nbasis
     )
     occ = nat_occ / 2.0
-    rdm2act = ac0.get_rdm2_act(
-        ac0.getnrdm2act(cas_orbs), rdm2_nat, cas_orbs
-    )  
+    rdm2act = ac0.get_rdm2_act(ac0.getnrdm2act(cas_orbs), rdm2_nat, cas_orbs)
 
     xone = _get_xone(h_core, natural_orbitals)  # transform to NO basis
 
-    e_tot, e_corr = ac0.accas(
+    _, e_corr = ac0.accas(
         e_nuc,
         twono,
         np.eye(nbasis),  # a unit matrix because everything is in NO basis
