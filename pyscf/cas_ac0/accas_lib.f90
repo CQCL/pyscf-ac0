@@ -174,11 +174,11 @@ function Naddr3(IAddr1,IAddr2,IAddr3,IAddr4) result(NAddr3_res)
 
 end function NAddr3
 
-SUBROUTINE accas(etot,enuc,twono,ure,occ,xone,  &
+SUBROUTINE accas(etot,ecorr,enuc,twono,ure,occ,xone,  &
     nbasis,ninte1,ninte2,rdm2act, n_electron, naccas, n_act_ele)
 !     A ROUTINE FOR COMPUTING ELECTRONIC ENERGY USING ERPA TRANSITION
 !     DENSITY MATRIX ELEMENTS
-REAL(8), INTENT(OUT)                     :: etot
+REAL(8), INTENT(OUT)                     :: etot, ecorr
 REAL(8), INTENT(IN )                     :: enuc
 REAL(8), INTENT(IN )                     :: twono(ninte2)
 ! twono=TwoEl - 2-electron integrals in NO representation
@@ -203,7 +203,7 @@ integer, intent(in) :: naccas , n_act_ele, n_electron
 real(8) :: ThrAct, ThrSelAct, ThrVirt, ThrQVirt
 
 
-real(8) :: ecorr
+!
 
 
 REAL(8), PARAMETER :: zero=0.d0
@@ -1075,8 +1075,7 @@ DO irow=1,noeig
 !     end of IP,IQ LOOPS
           END DO
         END DO
-
-        1000 CONTINUE
+        
 !     end icount
       END IF
 !     If IGem ....
