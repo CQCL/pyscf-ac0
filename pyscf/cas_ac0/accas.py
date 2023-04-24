@@ -19,6 +19,7 @@ from pyscf.cas_ac0.ac0_lib import accas_lib as ac0
 # disable C0103: Argument name ... doesn't conform to snake_case naming style
 # pylint: disable=C0103
 
+
 def _get_xone(hcore, mos):
     h1eff = np.einsum("ki,kl,lj->ij", mos, hcore, mos)
     return h1eff[np.tril_indices(h1eff.shape[0])]
@@ -75,7 +76,7 @@ def get_ac0_corr_energy_from_file(filename: str):
     natural_orbitals = np.asarray(data_file["natural_orbitals"])
     nat_occ = np.asarray(data_file["nat_occ"])
     ucas = np.asarray(data_file["ucas"])
-    cas_dimensions = np.asarray(data_file['cas_dimensions'])
+    cas_dimensions = np.asarray(data_file["cas_dimensions"])
     cas_orbs = cas_dimensions[0]
     cas_elec = cas_dimensions[1]
     dm2 = np.asarray(data_file["dm2"])
@@ -85,9 +86,7 @@ def get_ac0_corr_energy_from_file(filename: str):
     rdm2_nat = ac0.trrdm2(dm2, ucas.T, ucas.shape[0])  # transform to NO basis
 
     integrals = integrals.reshape([nbasis] * 4)
-    twono = ac0.get_two_el(
-        integrals, ac0.get_two_el_size(nbasis), nbasis
-    )
+    twono = ac0.get_two_el(integrals, ac0.get_two_el_size(nbasis), nbasis)
     occ = nat_occ / 2.0
     rdm2act = ac0.get_rdm2_act(ac0.getnrdm2act(cas_orbs), rdm2_nat, cas_orbs)
 
@@ -119,8 +118,9 @@ if __name__ == "__main__":
     mycas = myhf.CASSCF(ncas, nelecas)
     mycas.natorb = True
     mycas.run()
-    print(f"CAS-AC0: {get_cas_ac0_energy(myhf, mycas)}")
-
+    e = get_cas_ac0_energy(myhf, mycas)
+    print(f"CAS-AC0: {e}")
+    assert np.isclose(e, -149.96063718895718)
     mol = pyscf.M(atom="H 0 0 0; H 0.7 0 0", basis="cc-pvdz")
     myhf = mol.RHF().run()
     ncas, nelecas = (2, 2)
