@@ -80,5 +80,10 @@ subprocess.run(
 os.chdir(previous_path)
 
 setup(
-    include_package_data=True, packages=modules, scripts=["bin/rdm_ac0.py"], **settings
+    include_package_data=True, 
+    packages=modules, 
+    entry_points={
+        'console_scripts': ['rdm_ac0=pyscf.cas_ac0._cli:rdm_ac0']
+    }, 
+    **settings
 )
