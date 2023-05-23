@@ -1,5 +1,5 @@
 # CAS-AC0 module for PySCF
-This is a PySCF extension implementing CAS-AC0 (see https://doi.org/10.1021/acs.jctc.8b00213), using refactored portions of GAMMCOR https://github.com/pernalk/GAMMCOR .
+This is a PySCF extension implementing CAS-AC0 (see https://doi.org/10.1021/acs.jctc.8b00213), using refactored portions of GAMMCOR https://github.com/pernalk/GAMMCOR . GAMMCOR and the ACn theory have been developed by the Pernal group at Łódź University of Technology
 
 An executable script is provided, to enable calling cas-ac0 from inquanto-pyscf extension.
 
