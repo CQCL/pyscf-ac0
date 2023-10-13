@@ -66,6 +66,47 @@ def get_cas_ac0_energy(mf, mc):
     return e_tot
 
 
+def get_cas_ac0_correction(mf, mc):
+    # nvirt = mc.mo_coeff.shape[0] - mc.ncore - mc.ncas
+    # active_mask = [False] * mc.ncore + [True] * mc.ncas + [False] * nvirt
+    _, dm2 = mc.fcisolver.make_rdm12(mc.ci, mc.ncas, mc.nelecas)
+    # core_mask = [((not active_mask[i]) and o > 0) for i, o in enumerate(mf.mo_occ)]
+    natural_orbitals = mc.mo_coeff
+    nbasis = natural_orbitals.shape[0]
+    if not mc.natorb:
+        raise ValueError(
+            "CAS-AC0: need natural orbitals, please set CASSCF.natorb=True"
+        )
+    integrals = ao2mo.outcore.full_iofree(mf.mol, natural_orbitals, aosym=1)
+    integrals = integrals.reshape([nbasis] * 4)
+    twono = ac0.get_two_el(integrals, ac0.get_two_el_size(nbasis), nbasis)
+
+    cas_orbs = mc.ncas
+    cas_elec = sum(mc.nelecas)
+
+    nat_occ = mc.mo_occ
+    occ = nat_occ / 2
+
+    rdm2act = ac0.get_rdm2_act(ac0.getnrdm2act(cas_orbs), dm2, cas_orbs)  # NO basis
+
+    xone = _get_xone(mf.get_hcore(), natural_orbitals)
+    _, e_corr = ac0.accas(
+        mf.energy_nuc(),
+        twono,
+        np.eye(nbasis),  # UCAS is a unit matrix because everything is in NO basis
+        occ,
+        xone,
+        rdm2act,
+        int(round(np.sum(occ) * 2)),
+        cas_orbs,
+        cas_elec,
+        nbasis,
+        xone.shape[0],
+        twono.shape[0],
+    )
+    return e_corr
+
+
 def get_ac0_corr_energy_from_file(filename: str):
     data_file = h5py.File(
         filename,
