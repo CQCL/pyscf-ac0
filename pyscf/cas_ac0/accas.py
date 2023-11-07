@@ -148,26 +148,3 @@ def get_ac0_corr_energy_from_file(filename: str):
         twono.shape[0],
     )
     return e_corr
-
-
-if __name__ == "__main__":
-    import pyscf
-
-    mol = pyscf.M(atom="O 0 0 0; O 0 0 1.2", basis="ccpvdz", spin=2)
-    myhf = mol.RHF().run()
-    ncas, nelecas = (6, (5, 3))
-    mycas = myhf.CASSCF(ncas, nelecas)
-    mycas.natorb = True
-    mycas.run()
-    e = get_cas_ac0_energy(myhf, mycas)
-    print(f"CAS-AC0: {e}")
-    assert np.isclose(e, -149.96063718895718)
-    mol = pyscf.M(atom="H 0 0 0; H 0.7 0 0", basis="cc-pvdz")
-    myhf = mol.RHF().run()
-    ncas, nelecas = (2, 2)
-    mycas = myhf.CASSCF(ncas, nelecas)
-    mycas.natorb = True
-    mycas.run()
-    e = get_cas_ac0_energy(myhf, mycas)
-    print(f"CAS-AC0: {e}")
-    assert np.isclose(e, -1.1572426436084569, atol=1e-8)
