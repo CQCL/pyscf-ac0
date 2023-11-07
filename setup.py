@@ -14,8 +14,8 @@ setup_args = dict(
     ext_modules=[
         Extension(
             name='pyscf.cas_ac0.ac0_lib',
-            sources=['pyscf/cas_ac0/accas_lib.f90']
+            sources=['pyscf/cas_ac0/accas_lib.f90'],
         )
-    ]
+    ],
 )
 setup(**setup_args)
