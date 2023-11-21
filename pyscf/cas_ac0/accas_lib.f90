@@ -15,8 +15,10 @@ implicit none
 contains
 
 function get_two_el_size(NBas) result(two_el_size)
-    integer(4), intent(in) :: nbas
-    integer(4)    ::  NInte1
+    !integer(4), intent(in) :: nbas ! Michal original
+    !integer(4)    ::  NInte1 ! Michal original
+    integer(8), intent(in) :: nbas ! Cono
+    integer(8)    ::  NInte1 ! Cono
     integer(8) :: two_el_size
     NInte1 = NBas*(NBas+1)/2
     two_el_size = NInte1*(NInte1+1)/2
@@ -28,7 +30,8 @@ function get_two_el(eri_matrix, two_el_size, nbas) result(twoel)
     integer(8), intent(in) :: two_el_size
     real(8), dimension(nbas,nbas,nbas,nbas), intent(in) :: eri_matrix
     integer(4)    ::  I,J,K,L
-    real(4), dimension(two_el_size) :: twoel
+    !real(4), dimension(two_el_size) :: twoel ! Michal original
+    real(8), dimension(two_el_size) :: twoel
 
     ! print *, 'two_el_size=', two_el_size
 
@@ -590,7 +593,8 @@ SUBROUTINE erpasymm0(eigy,eigx,eig,aplsqrt,abmin,ndimx,nbasis)
 INTEGER, INTENT(IN)  :: ndimx, nbasis
 real(8), dimension(ndimx,ndimx), INTENT(INOUT) :: aplsqrt, abmin
 real(8), INTENT(INOUT), dimension(ndimx*ndimx)  :: eigx, eigy
-real(8), dimension(NBasis*(NBasis-1)/2),intent(out) :: eig
+!real(8), dimension(NBasis*(NBasis-1)/2),intent(out) :: eig ! Michal original
+real(8), dimension(ndimx),intent(out) :: eig
 
 real(8), dimension(ndimx,ndimx) :: hlpab
 real(8), dimension(5*ndimx) :: work
@@ -1172,13 +1176,15 @@ integer :: nrdm2act, nact,inactive, nele, noccup, ngem
 integer :: i, ia, iab, ii, ij, ib, ip, iq, ir, is, j, it, k, l, kl, nadd
 integer :: ipp, ipq, iqq, iu, iw, ndimb, nfree1, nfree2, noeig, icol, irow, irr, iss
 real(8) :: aux, abp, abm
-real(8), dimension((NBasis*(NBasis-1)/2)*(NBasis*(NBasis-1)/2))  :: abplus, abmin, eigy ! what is this?
+!real(8), dimension((NBasis*(NBasis-1)/2)*(NBasis*(NBasis-1)/2))  :: abplus, abmin, eigy ! what is this? Michal original
+real(8), dimension(ndimx*ndimx)  :: abplus, abmin, eigy ! what is this? Cono
 real(8), dimension(nbasis) :: cicoef !needed in several places downstream, the dimension should probably be nbasis(!) rather than 1000
 integer, dimension(nbasis) :: igem
 integer :: nost, istart, mu, nu
 real(8) :: eall, eintra, sumy
 
-real(8), dimension(NBasis*(NBasis-1)/2) :: eig
+!real(8), dimension(NBasis*(NBasis-1)/2) :: eig !Michal original
+real(8), dimension(ndimx) :: eig ! Cono
 REAL(8), PARAMETER :: zero=0.d0
 REAL(8), PARAMETER :: half=0.5D0
 REAL(8), PARAMETER :: one=1.d0
