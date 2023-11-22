@@ -15,8 +15,7 @@ implicit none
 contains
 
 function get_two_el_size(NBas) result(two_el_size)
-    !integer(4), intent(in) :: nbas ! Michal original
-    !integer(4)    ::  NInte1 ! Michal original
+
     integer(8), intent(in) :: nbas ! Cono
     integer(8)    ::  NInte1 ! Cono
     integer(8) :: two_el_size
@@ -30,7 +29,6 @@ function get_two_el(eri_matrix, two_el_size, nbas) result(twoel)
     integer(8), intent(in) :: two_el_size
     real(8), dimension(nbas,nbas,nbas,nbas), intent(in) :: eri_matrix
     integer(4)    ::  I,J,K,L
-    !real(4), dimension(two_el_size) :: twoel ! Michal original
     real(8), dimension(two_el_size) :: twoel
 
     ! print *, 'two_el_size=', two_el_size
@@ -213,7 +211,7 @@ REAL(8), PARAMETER :: zero=0.d0
 REAL(8), PARAMETER :: half=0.5D0
 REAL(8), PARAMETER :: one=1.d0
 REAL(8), PARAMETER :: two=2.d0
-integer :: i,j,k,l, icount, ij, ind1,ind2,ind, ndimx
+integer :: i,j, icount, ij, ind1,ind2,ind, ndimx
 integer ::  iflcore
 integer :: nele ! number of electron pairs
 real(8) :: xele !half of number of electrons
@@ -323,7 +321,7 @@ END DO
 
 
 CALL ac0cas(ecorr,etot,twono,occ,ure,xone,  &
-          indn,indx,ndimx,nbasis,ninte1,ninte2, rdm2act, naccas, n_electron, n_act_ele)
+          indn,ndimx,nbasis,ninte1,ninte2, rdm2act, naccas, n_electron, n_act_ele)
     !WRITE (6,'(/,X,''ECASSCF+ENUC, AC0-CORR, AC0-CASSCF '',4X,3F15.8)')  &
      !  etot+enuc,ecorr,etot+enuc+ecorr
 etot=etot+enuc+ecorr
@@ -404,9 +402,9 @@ DO ip=iqq,ipp,ipp-iqq
 
                 IF(igfact(naddr3(is,iq,it,iu)) == 1) arspq=arspq  &
                     +twono(naddr3(is,iq,it,iu))*  &
-                    frdm2(ip,iu,ir,it,rdm2act,occ,ind2,nact,nbasis)  &
+                    frdm2(ip,iu,ir,it,rdm2act,occ,ind2,nact)  &
                     +twono(naddr3(is,iu,it,iq))*  &
-                    frdm2(ip,iu,it,ir,rdm2act,occ,ind2,nact,nbasis)
+                    frdm2(ip,iu,it,ir,rdm2act,occ,ind2,nact)
 
               END DO
             END DO
@@ -437,9 +435,9 @@ DO ip=iqq,ipp,ipp-iqq
 
                 IF(igfact(naddr3(iu,it,ip,ir)) == 1) arspq=arspq  &
                     +twono(naddr3(iu,it,ip,ir))*  &
-                    frdm2(is,it,iq,iu,rdm2act,occ,ind2,nact,nbasis)  &
+                    frdm2(is,it,iq,iu,rdm2act,occ,ind2,nact)  &
                     +twono(naddr3(iu,ir,ip,it))*  &
-                    frdm2(is,it,iu,iq,rdm2act,occ,ind2,nact,nbasis)
+                    frdm2(is,it,iu,iq,rdm2act,occ,ind2,nact)
 
               END DO
             END DO
@@ -469,7 +467,7 @@ DO ip=iqq,ipp,ipp-iqq
 
                 IF(igfact(naddr3(ip,it,is,iu)) == 1) arspq=arspq  &
                     -twono(naddr3(ip,it,is,iu))*  &
-                    frdm2(it,iu,iq,ir,rdm2act,occ,ind2,nact,nbasis)
+                    frdm2(it,iu,iq,ir,rdm2act,occ,ind2,nact)
 
               END DO
             END DO
@@ -496,7 +494,7 @@ DO ip=iqq,ipp,ipp-iqq
 
                 IF(igfact(naddr3(it,iq,iu,ir)) == 1) arspq=arspq  &
                     -twono(naddr3(it,iq,iu,ir))*  &
-                    frdm2(is,ip,iu,it,rdm2act,occ,ind2,nact,nbasis)
+                    frdm2(is,ip,iu,it,rdm2act,occ,ind2,nact)
 
               END DO
             END DO
@@ -532,7 +530,7 @@ RETURN
 END SUBROUTINE ab0element
 
 
-REAL*8 FUNCTION frdm2(ip,iq,ir,is,rdm2act,occ,ind2,nact,nbasis)
+REAL*8 FUNCTION frdm2(ip,iq,ir,is,rdm2act,occ,ind2,nact)
 
 !     FOR A GIVEN SET OF INDICES AND THE KNOWN PART OF ACTIVE RDM2
 !     RETURNS THE ELEMENT OF RDM2_PQRS FOR CAS
@@ -540,7 +538,7 @@ REAL*8 FUNCTION frdm2(ip,iq,ir,is,rdm2act,occ,ind2,nact,nbasis)
 INTEGER, INTENT(IN )                  :: ip,iq,ir, is
 REAL(8), INTENT(IN), dimension(:)           :: rdm2act,occ
 integer, intent(in), dimension(:) :: ind2
-INTEGER, INTENT(IN )                  ::  nact, nbasis
+INTEGER, INTENT(IN )                  ::  nact
 REAL(8) :: rdm2
 REAL, PARAMETER :: zero=0.d0
 REAL, PARAMETER :: half=0.5D0
@@ -581,7 +579,7 @@ END FUNCTION naddrrdm
 
 
 
-SUBROUTINE erpasymm0(eigy,eigx,eig,aplsqrt,abmin,ndimx,nbasis)
+SUBROUTINE erpasymm0(eigy,eigx,eig,aplsqrt,abmin,ndimx)
 
 !     ALMOST THE SAME AS ERPASYMM1 BUT BOTH Y AND X ARE RETURNED
 
@@ -590,14 +588,12 @@ SUBROUTINE erpasymm0(eigy,eigx,eig,aplsqrt,abmin,ndimx,nbasis)
 !     ABPLUS IS CHANGED AND TURNS INTO ABPLUS^(1/2)
 !     THIS ALLOWS ONE TO GET RID OF ONE LOCAL BIG ARRAY (COMPARING WITH ERPASYMM)
 
-INTEGER, INTENT(IN)  :: ndimx, nbasis
+INTEGER, INTENT(IN)  :: ndimx
 real(8), dimension(ndimx,ndimx), INTENT(INOUT) :: aplsqrt, abmin
 real(8), INTENT(INOUT), dimension(ndimx*ndimx)  :: eigx, eigy
-!real(8), dimension(NBasis*(NBasis-1)/2),intent(out) :: eig ! Michal original
 real(8), dimension(ndimx),intent(out) :: eig
 
 real(8), dimension(ndimx,ndimx) :: hlpab
-real(8), dimension(5*ndimx) :: work
 
 REAL(8), PARAMETER :: zero=0.d0
 REAL(8), PARAMETER :: half=0.5D0
@@ -626,7 +622,8 @@ END DO
 !     FIND A+^(1/2)
 
 noneg=0
-CALL cpym(hlpab,aplsqrt,ndimx)
+hlpab=aplsqrt
+! CALL cpym(hlpab,aplsqrt,ndimx)
 CALL diag8(hlpab,ndimx,ndimx,eig)
 
 DO i=1,ndimx
@@ -738,26 +735,11 @@ END DO
 
 RETURN
 END SUBROUTINE erpasymm0
-SUBROUTINE cpym(x,y,n)
 
-!     COPY A MATRIX Y TO X
-! this is probably redundant as F90 can copy arrays? Check with EP!!
-
-
-REAL(8), dimension(n*n), INTENT(OUT)   :: x(n*n)
-REAL(8), dimension(n*n), INTENT(IN)    :: y(n*n)
-INTEGER, INTENT(IN)                 :: n
-integer :: i
-
-DO  i=1,n*n
-  x(i)=y(i)
-END DO
-
-end subroutine cpym
 
 
 SUBROUTINE ab1_cas(abplus,abmin,ure,occ,xone,twono,  &
-    rdm2act,nrdm2act,igfact,c,ind1,ind2,  &
+    rdm2act,igfact,c,ind1,ind2,  &
     indblock,noeig,ndimx,nbasis,ninte1,ninte2, naccas, ninaccas, igem)
 !added naccas, ninaccas, igem
 
@@ -772,7 +754,7 @@ implicit none
 INTEGER, INTENT(IN )   :: ndimx, noeig
 integer, dimension(nbasis), intent(in) :: igem
 real(8), dimension((NBasis*(NBasis-1)/2)*(NBasis*(NBasis-1)/2)), intent(inout) :: abplus, abmin
-INTEGER, INTENT(IN ) :: nbasis,ninte1, ninte2, nrdm2act, naccas, ninaccas
+INTEGER, INTENT(IN ) :: nbasis,ninte1, ninte2, naccas, ninaccas
 Integer, dimension(nbasis), INTENT(IN ) :: ind1,ind2
 real(8), INTENT(IN ), dimension(ninte2) ::  twono
 integer, dimension(2,ndimx), intent(in) :: indblock
@@ -885,9 +867,9 @@ DO ip=1,nbasis
 
           DO ir=1,noccup
             wmat(ip,ir)=wmat(ip,ir) +twono(naddr3(it,iw,ip,iu))  &
-                *frdm2(iw,iu,it,ir,rdm2act,occ,ind2,nact,nbasis)  &
+                *frdm2(iw,iu,it,ir,rdm2act,occ,ind2,nact)  &
                 +twono(naddr3(it,iu,ip,iw))  &
-                *frdm2(iw,iu,ir,it,rdm2act,occ,ind2,nact,nbasis)
+                *frdm2(iw,iu,ir,it,rdm2act,occ,ind2,nact)
           END DO
 
         END IF
@@ -968,9 +950,9 @@ DO irow=1,noeig
 
                       IF(igfact(naddr3(is,iq,it,iu)) == 0) arspq=arspq  &
                           +twono(naddr3(is,iq,it,iu))*  &
-                          frdm2(ip,iu,ir,it,rdm2act,occ,ind2,nact,nbasis)  &
+                          frdm2(ip,iu,ir,it,rdm2act,occ,ind2,nact)  &
                           +twono(naddr3(is,iu,it,iq))*  &
-                          frdm2(ip,iu,it,ir,rdm2act,occ,ind2,nact,nbasis)
+                          frdm2(ip,iu,it,ir,rdm2act,occ,ind2,nact)
 
                     END DO
                   END DO
@@ -999,9 +981,9 @@ DO irow=1,noeig
 
                       IF(igfact(naddr3(iu,it,ip,ir)) == 0) arspq=arspq  &
                           +twono(naddr3(iu,it,ip,ir))*  &
-                          frdm2(is,it,iq,iu,rdm2act,occ,ind2,nact,nbasis)  &
+                          frdm2(is,it,iq,iu,rdm2act,occ,ind2,nact)  &
                           +twono(naddr3(iu,ir,ip,it))*  &
-                          frdm2(is,it,iu,iq,rdm2act,occ,ind2,nact,nbasis)
+                          frdm2(is,it,iu,iq,rdm2act,occ,ind2,nact)
 
                     END DO
                   END DO
@@ -1028,7 +1010,7 @@ DO irow=1,noeig
 
                       IF(igfact(naddr3(ip,it,is,iu)) == 0) arspq=arspq  &
                           -twono(naddr3(ip,it,is,iu))*  &
-                          frdm2(it,iu,iq,ir,rdm2act,occ,ind2,nact,nbasis)
+                          frdm2(it,iu,iq,ir,rdm2act,occ,ind2,nact)
 
                     END DO
                   END DO
@@ -1052,7 +1034,7 @@ DO irow=1,noeig
 
                       IF(igfact(naddr3(it,iq,iu,ir)) == 0) arspq=arspq  &
                           -twono(naddr3(it,iq,iu,ir))*  &
-                          frdm2(is,ip,iu,it,rdm2act,occ,ind2,nact,nbasis)
+                          frdm2(is,ip,iu,it,rdm2act,occ,ind2,nact)
 
                     END DO
                   END DO
@@ -1149,7 +1131,7 @@ END SUBROUTINE ab1_cas
 
 
 SUBROUTINE ac0cas(ecorr,etot,twono,occ,ure,xone,  &
-    indn,indx,ndimx,nbasis,ninte1,ninte2,rdm2act, naccas, n_electron, n_act_ele)
+    indn,ndimx,nbasis,ninte1,ninte2,rdm2act, naccas, n_electron, n_act_ele)
 real(8), INTENT(OUT)  :: ecorr, etot
 real(8), INTENT(IN ), dimension(ninte2) ::  twono
 real(8), INTENT(IN ) , dimension(nbasis) :: occ
@@ -1159,7 +1141,6 @@ real(8), INTENT(IN ), dimension(ninte1)   :: xone
 
 INTEGER, INTENT(IN )                  :: nbasis,ninte1, ninte2
 INTEGER, INTENT(IN ), dimension(2,NBasis*(NBasis-1)/2) :: indn
-INTEGER, INTENT(IN ), dimension(NBasis*(NBasis-1)/2) :: indx
 INTEGER, INTENT(IN )                  :: ndimx
 real(8), dimension(:), intent(in) :: RDM2Act
 integer, intent(in) :: naccas, n_act_ele, n_electron
@@ -1169,21 +1150,19 @@ Integer, dimension(nbasis) :: ind1,ind2
 real(8), dimension(nbasis,nbasis) :: wmat
 real(8), dimension(ninte1) :: hno, auxi, auxio
 integer,dimension(ninte2) :: igfact
-integer, dimension(nbasis,nbasis) :: ipair, work1
+integer, dimension(nbasis,nbasis) :: ipair
 real(8), dimension(ndimx*ndimx) :: eigx, xmaux
 integer, dimension(2,ndimx) :: ieigaddy, ieigaddind, indblock
 integer :: nrdm2act, nact,inactive, nele, noccup, ngem
 integer :: i, ia, iab, ii, ij, ib, ip, iq, ir, is, j, it, k, l, kl, nadd
 integer :: ipp, ipq, iqq, iu, iw, ndimb, nfree1, nfree2, noeig, icol, irow, irr, iss
 real(8) :: aux, abp, abm
-!real(8), dimension((NBasis*(NBasis-1)/2)*(NBasis*(NBasis-1)/2))  :: abplus, abmin, eigy ! what is this? Michal original
-real(8), dimension(ndimx*ndimx)  :: abplus, abmin, eigy ! what is this? Cono
+real(8), dimension(ndimx*ndimx)  :: abplus, abmin, eigy !  Cono
 real(8), dimension(nbasis) :: cicoef !needed in several places downstream, the dimension should probably be nbasis(!) rather than 1000
 integer, dimension(nbasis) :: igem
 integer :: nost, istart, mu, nu
 real(8) :: eall, eintra, sumy
 
-!real(8), dimension(NBasis*(NBasis-1)/2) :: eig !Michal original
 real(8), dimension(ndimx) :: eig ! Cono
 REAL(8), PARAMETER :: zero=0.d0
 REAL(8), PARAMETER :: half=0.5D0
@@ -1288,7 +1267,7 @@ DO ip=1,noccup
       DO is=1,noccup
         !print *, 'p=',ip,' q=',iq,' r=',ir,' s=',is
         !print *, 'frdm2=',frdm2(ip,iq,ir,is,rdm2act,occ,ind2,nact,nbasis) ! seems correct
-        etot=etot+frdm2(ip,iq,ir,is,rdm2act,occ,ind2,nact,nbasis)  &
+        etot=etot+frdm2(ip,iq,ir,is,rdm2act,occ,ind2,nact)  &
             *twono(naddr3(ip,ir,iq,is))
       END DO
     END DO
@@ -1397,9 +1376,9 @@ DO ip=1,nbasis
         DO iu=1,noccup
           IF(igfact(naddr3(it,iw,ip,iu)) == 1) wmat(ip,ir)=wmat(ip,ir)  &
               +twono(naddr3(it,iw,ip,iu))  &
-              *frdm2(iw,iu,it,ir,rdm2act,occ,ind2,nact,nbasis)  &
+              *frdm2(iw,iu,it,ir,rdm2act,occ,ind2,nact)  &
               +twono(naddr3(it,iu,ip,iw))  &
-              *frdm2(iw,iu,ir,it,rdm2act,occ,ind2,nact,nbasis)
+              *frdm2(iw,iu,ir,it,rdm2act,occ,ind2,nact)
 
         END DO
       END DO
@@ -1478,7 +1457,7 @@ END DO
 IF(ndimb /= 0) THEN
       !Print *, 'ACT-KA',norm2(ABPLUS(1:NDimB**2)),norm2(ABMIN)
   !IF(nost == 1) THEN
-    CALL erpasymm0(eigy(nfree2),eigx(nfree2),eig(nfree1),abplus,abmin, ndimb,nbasis)
+    CALL erpasymm0(eigy(nfree2),eigx(nfree2),eig(nfree1),abplus,abmin, ndimb)
   !ELSE
   !  CALL erpavecyx(eigy(nfree2),eigx(nfree2),eig(nfree1),abplus,abmin, ndimb)
   !END IF
@@ -1555,7 +1534,7 @@ DO iq=1,inactive
      !Print*, 'AI-KA',norm2(ABPLUS(1:NDimB**2)),norm2(ABMIN)
     !IF(nost == 1) THEN
       CALL erpasymm0(eigy(nfree2),eigx(nfree2),eig(nfree1),abplus,abmin,  &
-          ndimb,nbasis)
+          ndimb)
     !ELSE
      ! CALL erpavecyx(eigy(nfree2),eigx(nfree2),eig(nfree1),abplus,abmin,  &
     !      ndimb)
@@ -1634,7 +1613,7 @@ DO ip=noccup+1,nbasis
      !Print*, 'AV-KA',norm2(ABPLUS(1:NDimB**2)),norm2(ABMIN(1:NDimB**2))
 
     CALL erpasymm0(eigy(nfree2),eigx(nfree2),eig(nfree1),abplus,abmin,  &
-          ndimb, nbasis)
+          ndimb)
   END IF
 
   noeig=noeig+ndimb
@@ -1690,7 +1669,7 @@ END DO
 !WRITE(6,'(/, " *** COMPUTING ABPLUS(1) AND ABMIN(1) MATRICES ***"  &
 !    )')
 CALL ab1_cas(abplus,abmin,ure,occ,xone,twono,  &
-    rdm2act,nrdm2act,igfact,c,ind1,ind2,  &
+    rdm2act,igfact,c,ind1,ind2,  &
     indblock,noeig,ndimx,nbasis,ninte1,ninte2,naccas, INActive, igem)
         ! added naccas, INActive, igem to arguments!!
 !WRITE(6,'(/," *** DONE WITH COMPUTING AB(1) MATRICES ***")')
