@@ -622,7 +622,8 @@ END DO
 !     FIND A+^(1/2)
 
 noneg=0
-CALL cpym(hlpab,aplsqrt,ndimx)
+hlpab=aplsqrt
+! CALL cpym(hlpab,aplsqrt,ndimx)
 CALL diag8(hlpab,ndimx,ndimx,eig)
 
 DO i=1,ndimx
@@ -734,22 +735,7 @@ END DO
 
 RETURN
 END SUBROUTINE erpasymm0
-SUBROUTINE cpym(x,y,n)
 
-!     COPY A MATRIX Y TO X
-! this is probably redundant as F90 can copy arrays? Check with EP!!
-
-
-REAL(8), dimension(n*n), INTENT(OUT)   :: x(n*n)
-REAL(8), dimension(n*n), INTENT(IN)    :: y(n*n)
-INTEGER, INTENT(IN)                 :: n
-integer :: i
-
-DO  i=1,n*n
-  x(i)=y(i)
-END DO
-
-end subroutine cpym
 
 
 SUBROUTINE ab1_cas(abplus,abmin,ure,occ,xone,twono,  &
