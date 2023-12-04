@@ -31,7 +31,7 @@ def get_cas_ac0_energy(mf, mc):
     _, dm2 = mc.fcisolver.make_rdm12(mc.ci, mc.ncas, mc.nelecas)
     # core_mask = [((not active_mask[i]) and o > 0) for i, o in enumerate(mf.mo_occ)]
     natural_orbitals = mc.mo_coeff
-    nbasis = natural_orbitals.shape[0]
+    nbasis = natural_orbitals.shape[1]
     if not mc.natorb:
         raise ValueError(
             "CAS-AC0: need natural orbitals, please set CASSCF.natorb=True"
@@ -72,7 +72,7 @@ def get_cas_ac0_correction(mf, mc):
     _, dm2 = mc.fcisolver.make_rdm12(mc.ci, mc.ncas, mc.nelecas)
     # core_mask = [((not active_mask[i]) and o > 0) for i, o in enumerate(mf.mo_occ)]
     natural_orbitals = mc.mo_coeff
-    nbasis = natural_orbitals.shape[0]
+    nbasis = natural_orbitals.shape[1]
     if not mc.natorb:
         raise ValueError(
             "CAS-AC0: need natural orbitals, please set CASSCF.natorb=True"
@@ -123,7 +123,7 @@ def get_ac0_corr_energy_from_file(filename: str):
     dm2 = np.asarray(data_file["dm2"])
     integrals = np.asarray(data_file["integrals"])
 
-    nbasis = natural_orbitals.shape[0]
+    nbasis = natural_orbitals.shape[1]
     rdm2_nat = ac0.trrdm2(dm2, ucas.T, ucas.shape[0])  # transform to NO basis
 
     integrals = integrals.reshape([nbasis] * 4)
