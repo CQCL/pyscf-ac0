@@ -38,3 +38,12 @@ namespaces = true
 version_scheme = 'no-guess-dev'
 write_to = "pyscf/cas_ac0/version.py"
 git_describe_command = 'git describe --dirty --tags --long --match "*[0-9]*" --abbrev=14'
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-rfExX --disable-warnings -v -m 'not slow' -q --doctest-modules"
+testpaths = [
+    "tests",
+]
+cache_dir = ".pytest_cache"
+doctest_optionflags = "NUMBER"
