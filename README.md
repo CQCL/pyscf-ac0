@@ -3,7 +3,7 @@ This is a PySCF extension implementing CAS-AC0 (see https://doi.org/10.1021/acs.
 portions of GAMMCOR https://github.com/pernalk/GAMMCOR . GAMMCOR and the ACn theory have been developed by the Pernal 
 group at Łódź University of Technology
 
-An executable script is provided, to enable calling cas-ac0 from inquanto-pyscf extension.
+An executable script is provided, to enable calling cas-ac0 from inquanto-pyscf extension. Tested with PySCF 2.4.0 and 2.5.0.
 
 Install with `pip install .`
 
