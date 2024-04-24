@@ -15,7 +15,7 @@ requires-python = ">=3.9, <3.12"
 license = { file = "LICENSE" }
 dependencies = [
     "pyscf>=2.4.0",
-    "numpy<=1.26.4",
+    "numpy~=1.26",
 ]
 dynamic = ["version"]
 
