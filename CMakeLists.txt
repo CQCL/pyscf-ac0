@@ -8,7 +8,7 @@ find_package(
 
 # F2PY headers
 execute_process(
-  COMMAND "${PYTHON_EXECUTABLE}" -c
+  COMMAND "${Python_EXECUTABLE}" -c
           "import numpy.f2py; print(numpy.f2py.get_include())"
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -29,4 +29,4 @@ python_add_library(ac0_lib MODULE "${CMAKE_CURRENT_BINARY_DIR}/ac0_libmodule.c"
                    "${CMAKE_CURRENT_SOURCE_DIR}/src/pyscf/cas_ac0/accas_lib.f90" WITH_SOABI)
 target_link_libraries(ac0_lib PRIVATE fortranobject)
 
-install(TARGETS ac0_lib DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/src/pyscf/cas_ac0")
+install(TARGETS ac0_lib DESTINATION pyscf/cas_ac0)
