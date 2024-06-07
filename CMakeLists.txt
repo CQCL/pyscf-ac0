@@ -6,6 +6,12 @@ find_package(
   COMPONENTS Interpreter Development.Module NumPy
   REQUIRED)
 
+find_package(LAPACK)
+find_package(BLAS)
+if(LAPACK_FOUND AND BLAS_FOUND)
+    set(lapackblas_libraries ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
+
 # F2PY headers
 execute_process(
   COMMAND "${Python_EXECUTABLE}" -c
@@ -27,6 +33,6 @@ add_custom_command(
 
 python_add_library(ac0_lib MODULE "${CMAKE_CURRENT_BINARY_DIR}/ac0_libmodule.c"
                    "${CMAKE_CURRENT_SOURCE_DIR}/src/pyscf/cas_ac0/accas_lib.f90" WITH_SOABI)
-target_link_libraries(ac0_lib PRIVATE fortranobject)
+target_link_libraries(ac0_lib PRIVATE fortranobject ${lapackblas_libraries})
 
 install(TARGETS ac0_lib DESTINATION pyscf/cas_ac0)
