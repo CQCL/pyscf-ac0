@@ -6,7 +6,7 @@ build-backend = "scikit_build_core.build"
 name = "pyscf-ac0"
 description = "Interface to and port of fragments of GAMMCOR code developed by Pernal group at Lodz University of Technology"
 readme = "README.md"
-requires-python = ">=3.9, <3.12"
+requires-python = ">=3.10, <3.13"
 license = { file = "LICENSE" }
 dependencies = [
     "pyscf>=2.4.0",
