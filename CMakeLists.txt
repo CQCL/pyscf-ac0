@@ -32,7 +32,8 @@ add_custom_command(
           "${CMAKE_CURRENT_SOURCE_DIR}/src/pyscf/cas_ac0/accas_lib.f90" -m ac0_lib --lower)
 
 python_add_library(ac0_lib MODULE "${CMAKE_CURRENT_BINARY_DIR}/ac0_libmodule.c"
-                   "${CMAKE_CURRENT_SOURCE_DIR}/src/pyscf/cas_ac0/accas_lib.f90" WITH_SOABI)
+                    "${CMAKE_CURRENT_BINARY_DIR}/ac0_lib-f2pywrappers2.f90"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/src/pyscf/cas_ac0/accas_lib.f90" WITH_SOABI)
 target_link_libraries(ac0_lib PRIVATE fortranobject ${lapackblas_libraries})
 
 install(TARGETS ac0_lib DESTINATION pyscf/cas_ac0)
