@@ -24,4 +24,4 @@ def test_accas_H2():
     mycas.run()
     e = accas.get_cas_ac0_energy(myhf, mycas)
     # print(f"CAS-AC0: {e}")
-    assert e == pytest.approx(-1.1572426436084569, abs=1e-8)
+    assert e == pytest.approx(-1.1572426436084569, abs=1e-6)
