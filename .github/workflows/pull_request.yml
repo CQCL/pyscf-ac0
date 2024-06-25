@@ -24,6 +24,7 @@ jobs:
           python-version: ${{ matrix.py-version }}
 
       - uses: fortran-lang/setup-fortran@v1
+        if: ${{ matrix.os == "macos-latest" }}
         id: setup-fortran
         with:
           compiler: gcc
@@ -32,7 +33,7 @@ jobs:
       - name: Install pyscf-ac0
         run: |
           python -m pip install --upgrade pip
-          python -m pip install .
+          python -m pip install -v .
 
       - name: Test with pytest
         run: |
