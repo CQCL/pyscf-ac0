@@ -24,7 +24,7 @@ jobs:
           python-version: ${{ matrix.py-version }}
 
       - uses: fortran-lang/setup-fortran@v1
-        if: ${{ matrix.os == "macos-latest" }}
+        if: ${{ matrix.os == 'macos-latest' }}
         id: setup-fortran
         with:
           compiler: gcc
