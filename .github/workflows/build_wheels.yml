@@ -1,35 +1,68 @@
 name: Release [Build wheels]
 
-#on:
-#  pull_request:
-#    branches:
-#      - main
-
 on:
-  release:
-    types:
-      - created
+  pull_request:
+    branches:
+      - main
+
+#on:
+#  release:
+#    types:
+#      - created
 
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+  build_wheels_linux:
+    name: Build wheels on linux
+    runs-on: ubuntu-latest
+#        os: [ ubuntu-20.04, ubuntu-latest, macos-12,  macos-latest, macos-latest-xlarge ]
+#        py: [ '3.10', '3.11', '3.12' ]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.2
-
         env:
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CC: gcc-13
+          FC: gcc-13
           CIBW_ARCHS_LINUX: "x86_64"
-          CIBW_BUILD: cp39-* cp310-* cp311-*
+          CIBW_BUILD: cp310-* cp311-* cp312-*
           CIBW_BUILD_FRONTEND: "build"
-          CIBW_BEFORE_ALL_MACOS: "brew install gsed"
+#          CIBW_BEFORE_ALL_MACOS: "brew install gsed"
+
+        with:
+          package-dir: .
+          output-dir: wheelhouse
+          config-file: "{package}/pyproject.toml"
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
+
+  build_wheels_macos:
+    name: Build wheels on macos
+    runs-on: macos-latest
+#        os: [ ubuntu-20.04, ubuntu-latest, macos-12,  macos-latest, macos-latest-xlarge ]
+#        py: [ '3.10', '3.11', '3.12' ]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: fortran-lang/setup-fortran@v1
+        id: setup-fortran
+        with:
+          compiler: gcc
+          version: 13
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.16.2
+        env:
+          CC: clang
+          FC: gfortran
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CIBW_BUILD: cp310-* cp311-* cp312-*
+          CIBW_BUILD_FRONTEND: "build"
+#          CIBW_BEFORE_ALL_MACOS: "brew install gsed"
 
         with:
           package-dir: .
