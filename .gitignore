@@ -1,4 +1,6 @@
 *.so
 *.egg-info
 *.pyc
-**/build/**
+
+src/pyscf/cas_ac0/_version.py
+/dist

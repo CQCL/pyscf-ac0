@@ -7,6 +7,6 @@ An executable script is provided, to enable calling cas-ac0 from inquanto-pyscf 
 
 Install with `pip install .`
 
-There are 2 tests included, executed with `python pyscf/cas_ac0/accas.py`.
+[//]: # (There are 2 tests included, executed with `python pyscf/cas_ac0/accas.py`.)
 
 Use the command-line executable with `rdm_ac0 file.h5`.
