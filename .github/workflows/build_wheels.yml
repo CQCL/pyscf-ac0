@@ -73,3 +73,27 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
+
+  upload_wheels:
+    name: upload wheels to cloudsmith
+    needs: [build_wheels_macos, build_wheels_linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v3
+        with:
+          path: wheelhouse
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+
+      - name: Set up upload env
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install cloudsmith-api cloudsmith-cli
+
+      - name: Upload wheel to cloudsmith
+        run: |
+          for w in `find ./wheelhouse/ -type f -name "*.whl"` ; do cloudsmith push python quantinuum/internal "$w" -k ${{ secrets.CLOUDSMITH_TOKEN  }} ; done
