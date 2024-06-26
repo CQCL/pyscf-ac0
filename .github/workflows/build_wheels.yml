@@ -49,6 +49,11 @@ jobs:
           output-dir: wheelhouse
           config-file: "{package}/pyproject.toml"
 
+      - name: Upload wheels to artifact
+        uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
+
   upload_wheels:
     name: upload wheels to cloudsmith
     needs: build_wheels
