@@ -96,4 +96,4 @@ jobs:
 
       - name: Upload wheel to cloudsmith
         run: |
-          for w in `find ./wheelhouse/ -type f -name "*.whl"` ; do cloudsmith push python quantinuum/internal "$w" -k ${{ secrets.CLOUDSMITH_TOKEN  }} ; done
+          for w in `find wheelhouse/ -type f -name "*.whl"` ; do cloudsmith push python quantinuum/internal "$w" -k ${{ secrets.CLOUDSMITH_TOKEN  }} ; done
