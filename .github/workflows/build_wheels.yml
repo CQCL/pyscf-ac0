@@ -16,12 +16,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix: # CIBW wheel tests need the right runner arch, so we use separate runners for macos
-        os: [ ubuntu-latest, macos-latest, macos-13 ]
+        os: [ ubuntu-latest, macos-latest, macos-12 ]
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: fortran-lang/setup-fortran@v1
+      - name: Install gfortran
+        uses: fortran-lang/setup-fortran@v1
         if: ${{ matrix.os != 'ubuntu-latest' }}
         id: setup-fortran
         with:
@@ -31,7 +32,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.2
         env:
-          CC: ${{ matrix.os == 'ubuntu-latest' && 'gcc-13' || 'clang' }}
+          CC: ${{ matrix.os == 'ubuntu-latest' && 'gcc-13' || 'clang' }}  # believe it or not, this is a ternary operator
           FC: ${{ matrix.os == 'ubuntu-latest' && 'gcc-13' || 'gfortran' }}
           CIBW_BEFORE_ALL_LINUX: "yum install -y lapack-devel blas-devel"
           CIBW_ARCHS_LINUX: "x86_64"
@@ -40,83 +41,17 @@ jobs:
           CIBW_SKIP: "*-musllinux*"
           CIBW_BUILD: "cp310-* cp311-* cp312-*"
           CIBW_BUILD_FRONTEND: "build"
-          CIBW_TEST_REQUIRES: pytest
+          CIBW_TEST_REQUIRES: pytest~=6.2.2
           CIBW_TEST_COMMAND: pytest {project}/tests
 
         with:
           package-dir: .
           output-dir: wheelhouse
           config-file: "{package}/pyproject.toml"
-#
-#  build_wheels_linux:
-#    name: Build wheels on linux
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      - uses: actions/checkout@v4
-#
-#      - name: Build wheels
-#        uses: pypa/cibuildwheel@v2.16.2
-#        env:
-#          CC: gcc-13
-#          FC: gcc-13
-#          CIBW_BEFORE_ALL: "yum install -y lapack-devel blas-devel"
-#          CIBW_ARCHS: "x86_64"
-#          CIBW_BUILD: "cp310-* cp311-* cp312-*"
-#          CIBW_SKIP: "*-musllinux*"
-#          CIBW_BUILD_FRONTEND: "build"
-#          CIBW_TEST_REQUIRES: pytest
-#          CIBW_TEST_COMMAND: pytest {project}/tests
-#
-#        with:
-#          package-dir: .
-#          output-dir: wheelhouse
-#          config-file: "{package}/pyproject.toml"
-#
-#      - uses: actions/upload-artifact@v3
-#        with:
-#          path: ./wheelhouse/*.whl
-#
-#  build_wheels_macos:
-#    name: Build wheels on ${{ matrix.os }}
-#    runs-on: ${{ matrix.os }}
-#    strategy:
-#      matrix:  # CIBW wheel tests need the right arch, so we use separate runners
-#        os: [ macos-latest, macos-13 ]
-#
-#    steps:
-#      - uses: actions/checkout@v4
-#
-#      - uses: fortran-lang/setup-fortran@v1
-#        id: setup-fortran
-#        with:
-#          compiler: gcc
-#          version: 13
-#
-#      - name: Build wheels
-#        uses: pypa/cibuildwheel@v2.16.2
-#        env:
-#          CC: clang
-#          FC: gfortran
-#          CIBW_ARCHS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
-#          CIBW_BUILD: "cp310-* cp311-* cp312-*"
-#          CIBW_BUILD_FRONTEND: "build"
-#          CIBW_REPAIR_WHEEL_COMMAND: ""
-#          CIBW_TEST_REQUIRES: pytest
-#          CIBW_TEST_COMMAND: pytest {project}/tests
-#
-#        with:
-#          package-dir: .
-#          output-dir: wheelhouse
-#          config-file: "{package}/pyproject.toml"
-#
-#      - uses: actions/upload-artifact@v3
-#        with:
-#          path: ./wheelhouse/*.whl
 
   upload_wheels:
     name: upload wheels to cloudsmith
-    needs: build_wheels #[build_wheels_macos, build_wheels_linux]
+    needs: build_wheels
     runs-on: ubuntu-latest
     steps:
       - name: Download all wheels
@@ -134,6 +69,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install cloudsmith-api cloudsmith-cli
 
-#      - name: Upload wheel to cloudsmith
-#        run: |
-#          for w in `find wheelhouse/ -type f -name "*.whl"` ; do cloudsmith push python quantinuum/internal "$w" -k ${{ secrets.CLOUDSMITH_TOKEN  }} ; done
+      - name: Upload wheel to cloudsmith
+        run: |
+          for w in `find wheelhouse/ -type f -name "*.whl"` ; do cloudsmith push python quantinuum/internal "$w" -k ${{ secrets.CLOUDSMITH_TOKEN  }} ; done
