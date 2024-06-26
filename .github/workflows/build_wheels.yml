@@ -25,7 +25,7 @@ jobs:
         env:
           CC: gcc-13
           FC: gcc-13
-          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_ARCHS: "x86_64"
           CIBW_BUILD: cp310-* cp311-* cp312-*
           CIBW_BUILD_FRONTEND: "build"
 #          CIBW_BEFORE_ALL_MACOS: "brew install gsed"
@@ -59,9 +59,10 @@ jobs:
         env:
           CC: clang
           FC: gfortran
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
+          CIBW_ARCHS: "x86_64 arm64"
           CIBW_BUILD: cp310-* cp311-* cp312-*
           CIBW_BUILD_FRONTEND: "build"
+          CIBW_REPAIR_WHEEL_COMMAND: ""
 #          CIBW_BEFORE_ALL_MACOS: "brew install gsed"
 
         with:
