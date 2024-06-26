@@ -35,9 +35,9 @@ jobs:
           FC: ${{ matrix.os == 'ubuntu-latest' && 'gcc-13' || 'gfortran' }}
           CIBW_BEFORE_ALL_LINUX: "yum install -y lapack-devel blas-devel"
           CIBW_ARCHS_LINUX: "x86_64"
-          CIBW_SKIP_LINUX: "*-musllinux*"
           CIBW_ARCHS_MACOS: ${{ matrix.os == 'macos-latest' && 'arm64' || 'x86_64' }}
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: ""
+          CIBW_SKIP: "*-musllinux*"
           CIBW_BUILD: "cp310-* cp311-* cp312-*"
           CIBW_BUILD_FRONTEND: "build"
           CIBW_TEST_REQUIRES: pytest
