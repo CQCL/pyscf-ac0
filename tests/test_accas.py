@@ -2,6 +2,7 @@ import pyscf
 from pyscf.cas_ac0 import accas
 import pytest
 
+
 def test_accas_O2():
     mol = pyscf.M(atom="O 0 0 0; O 0 0 1.2", basis="ccpvdz", spin=2)
     myhf = mol.RHF().run()
@@ -23,4 +24,6 @@ def test_accas_H2():
     mycas.run()
     e = accas.get_cas_ac0_energy(myhf, mycas)
     # print(f"CAS-AC0: {e}")
-    assert e == pytest.approx(-1.1572426436084569, abs=2e-6)  # TODO: this failed stochastically with 1e-6
+    assert e == pytest.approx(
+        -1.1572426436084569, abs=2e-6
+    )  # TODO: this failed stochastically with 1e-6

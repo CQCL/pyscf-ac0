@@ -10,6 +10,7 @@
 from pyscf.cas_ac0.accas import get_ac0_corr_energy_from_file
 import sys
 
+
 def rdm_ac0():
     """Command-line interface to compute ac0 core energy from input h5 file."""
     if len(sys.argv) != 2:
