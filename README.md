@@ -28,7 +28,7 @@ If this runs into issues, you may need to be more deliberate with compilers. Spe
 ```
 pip install -v . -Ccmake.args="-DCMAKE_C_COMPILER=/my/C/compiler; -DCMAKE_Fortran_COMPILER=/my/fortran/compiler"
 ```
-On linux, we test with gcc-13 for C and Fortran. And on MacOS, we test with AppleClang 15 for C, and gcc-13 for Fortran.
+On linux, we test with gcc-10 for C and Fortran. And on MacOS, we test with AppleClang 15 for C, and gcc-11 for Fortran.
 
 # Development
 
