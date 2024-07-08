@@ -25,6 +25,7 @@ jobs:
           gcc-11 --version
           gfortran-11 --version
           gcc --version
+          ls /Applications/Xcode_15.0.1.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.19
