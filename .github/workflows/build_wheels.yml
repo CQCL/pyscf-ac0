@@ -22,7 +22,7 @@ jobs:
 
       - if: ${{ runner.os == 'macOS' }}
         run: |
-          xcode-select --install
+          which gfortran
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.19
