@@ -22,7 +22,9 @@ jobs:
 
       - if: ${{ runner.os == 'macOS' }}
         run: |
-          which gfortran
+          gcc-11 --version
+          gfortran-11 --version
+          gcc --version
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.19
