@@ -65,6 +65,6 @@ jobs:
       - name: Publish wheels
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
-          repository-url: https://test.pypi.org/legacy/
+#          repository-url: https://test.pypi.org/legacy/
