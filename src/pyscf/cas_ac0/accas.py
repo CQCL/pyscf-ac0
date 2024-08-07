@@ -36,7 +36,7 @@ def get_cas_ac0_energy(mf, mc):
         raise ValueError(
             "CAS-AC0: need natural orbitals, please set CASSCF.natorb=True"
         )
-    integrals = ao2mo.outcore.full_iofree(mf.mol, natural_orbitals, aosym=1)
+    integrals = ao2mo.kernel(mf.mol, natural_orbitals, aosym="s1")
     integrals = integrals.reshape([nbasis] * 4)
     twono = ac0.get_two_el(integrals, ac0.get_two_el_size(nbasis), nbasis)
 
@@ -77,7 +77,7 @@ def get_cas_ac0_correction(mf, mc):
         raise ValueError(
             "CAS-AC0: need natural orbitals, please set CASSCF.natorb=True"
         )
-    integrals = ao2mo.outcore.full_iofree(mf.mol, natural_orbitals, aosym=1)
+    integrals = ao2mo.kernel(mf.mol, natural_orbitals, aosym="s1")
     integrals = integrals.reshape([nbasis] * 4)
     twono = ac0.get_two_el(integrals, ac0.get_two_el_size(nbasis), nbasis)
 
