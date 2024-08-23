@@ -322,7 +322,7 @@ def _build_vir_cor_0(mc, h1e, rdm2):
     return apb, amb
 
 
-def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
+def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0, block_size=16):
     """Build a block of the α=1 A+B and A-B matrices.
 
     Args:
@@ -333,6 +333,8 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
         w_0: The eigenvalues of the α=0 A+B and A-B matrices.
         x_0: The X eigenvectors of the α=0 A+B and A-B matrices.
         y_0: The Y eigenvectors of the α=0 A+B and A-B matrices.
+        block_size: The size of the blocks to iterate over. Lower sizes will use less memory but
+            may be slower.
     """
     # Get the spaces
     ncor = mc.ncore
@@ -377,64 +379,92 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
     tril = np.tril_indices(p.size)
     triu = np.triu_indices(p.size)
 
-    # Get the Hamiltonian blocks
-    h2e = ao2mo.kernel(mc._scf._eri, mc.mo_coeff, compact=False).reshape((norb,) * 4)
+    def _get_contribution(p):
+        # Get the Hamiltonian blocks
+        h2e = ao2mo.kernel(
+            mc._scf._eri,
+            (mc.mo_coeff[:, p], mc.mo_coeff, mc.mo_coeff, mc.mo_coeff),
+            compact=False,
+        ).reshape((p.stop - p.start, norb, norb, norb))
 
-    a = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs, h1e, np.eye(norb))
+        a = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs[p], h1e, np.eye(norb)[p])
 
-    tmp = lib.einsum("pqrs,p,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
-    tmp -= lib.einsum("prqs,p,r->pqrs", h2e[cor, not_cor, :, :], mo_occ[cor], mo_occ[not_cor])
-    a[cor, :, not_cor, :] += tmp
-    a[:, not_cor, :, cor] += tmp.transpose(3, 2, 1, 0)
+        tmp = lib.einsum("pqrs,q,s->pqrs", h2e[:, cor, :, not_cor], mo_occ[cor], mo_occ[not_cor]) * 2
+        tmp -= lib.einsum("prqs,q,s->pqrs", h2e[:, :, cor, not_cor], mo_occ[cor], mo_occ[not_cor])
+        a[:, cor, :, not_cor] += tmp
 
-    tmp = lib.einsum("qprs,q,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
-    tmp -= lib.einsum("qsrp,q,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor])
-    a[:, cor, not_cor, :] -= tmp
-    a[not_cor, :, :, cor] -= tmp.transpose(2, 3, 0, 1)
+        tmp = lib.einsum("pqrs,q,s->pqrs", h2e[:, not_cor, :, cor], mo_occ[not_cor], mo_occ[cor]) * 2
+        tmp -= lib.einsum("prqs,q,s->pqrs", h2e[:, :, not_cor, cor], mo_occ[not_cor], mo_occ[cor])
+        a[:, not_cor, :, cor] += tmp
 
-    a[cor, :, cor, :] += lib.einsum("pqrs,p,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
-    a[cor, :, cor, :] -= lib.einsum("prqs,p,r->pqrs", h2e[cor, cor, :, :], mo_occ[cor], mo_occ[cor])
+        tmp = lib.einsum("pqrs,q,r->pqrs", h2e[:, cor, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
+        tmp -= lib.einsum("prsq,q,r->pqrs", h2e[:, not_cor, :, cor], mo_occ[cor], mo_occ[not_cor])
+        a[:, cor, not_cor, :] -= tmp
 
-    a[:, cor, cor, :] -= lib.einsum("qprs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
-    a[:, cor, cor, :] += lib.einsum("rpqs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor])
+        tmp = lib.einsum("pqrs,q,r->pqrs", h2e[:, not_cor, cor, :], mo_occ[not_cor], mo_occ[cor]) * 2
+        tmp -= lib.einsum("prsq,q,r->pqrs", h2e[:, cor, :, not_cor], mo_occ[not_cor], mo_occ[cor])
+        a[:, not_cor, cor, :] -= tmp
 
-    tmp = get_veff(mc, internal=not_vir)
-    a[cor, :, cor, :] += lib.einsum("pr,qs->pqrs", np.diag(mo_occ[cor]), tmp)
+        a[:, cor, :, cor] += lib.einsum("pqrs,q,s->pqrs", h2e[:, cor, :, cor], mo_occ[cor], mo_occ[cor]) * 2
+        a[:, cor, :, cor] -= lib.einsum("prqs,q,s->pqrs", h2e[:, :, cor, cor], mo_occ[cor], mo_occ[cor])
 
-    tmp = get_veff(mc, internal=cor)
-    a[not_cor, :, not_cor, :] += lib.einsum("pr,qs->pqrs", np.diag(mo_occ[not_cor]), tmp)
+        a[:, cor, cor, :] -= lib.einsum("pqrs,q,r->pqrs", h2e[:, cor, cor, :], mo_occ[cor], mo_occ[cor]) * 2
+        a[:, cor, cor, :] += lib.einsum("prsq,q,r->pqrs", h2e[:, cor, :, cor], mo_occ[cor], mo_occ[cor])
 
-    a[act, :, act, :] += lib.einsum("tusq,purt->pqrs", h2e[act, act, :, :], rdm2)
-    a[act, :, act, :] += lib.einsum("ustq,putr->pqrs", h2e[act, :, act, :], rdm2)
-    a[:, act, act, :] -= lib.einsum("tpus,tuqr->pqrs", h2e[act, :, act, :], rdm2)
+        tmp = get_veff(mc, (p, slice(None)), not_vir)
+        a[:, cor, :, cor] += lib.einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[cor]))
 
-    tmp = np.zeros((norb, norb))
-    tmp[:, act] += lib.einsum("twup,wutr->pr", h2e[act, act, act, :], rdm2)
-    tmp[:, act] += lib.einsum("tuwp,wurt->pr", h2e[act, act, act, :], rdm2)
-    for slc, sign in ((not_vir, 1), (act, -1)):
-        # Avoids double counting of the active part
-        tmp[:, slc] += lib.einsum("ttrp,t,r->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * 2 * sign
-        tmp[:, slc] -= lib.einsum("trtp,r,t->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * sign
-        tmp[:, slc] += lib.einsum("ttrp,r,t->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * 2 * sign
-        tmp[:, slc] -= lib.einsum("trtp,t,r->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * sign
-    a -= lib.einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
+        tmp = get_veff(mc, (p, slice(None)), cor)
+        a[:, not_cor, :, not_cor] += lib.einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[not_cor]))
 
-    # Symmetrise
-    a = a + a.transpose(1, 0, 3, 2)
+        a[:, act, :, act] += lib.einsum("prtu,qust->pqrs", h2e[:, :, act, act], rdm2)
+        a[:, act, :, act] += lib.einsum("ptur,quts->pqrs", h2e[:, act, act, :], rdm2)
+        a[:, act, act, :] -= lib.einsum("ptus,tuqr->pqrs", h2e[:, act, act, :], rdm2)
 
-    # Find A+B
+        tmp = np.zeros((p.stop - p.start, norb))
+        tmp[:, act] += lib.einsum("putw,wutr->pr", h2e[:, act, act, act], rdm2)
+        tmp[:, act] += lib.einsum("pwtu,wurt->pr", h2e[:, act, act, act], rdm2)
+        for slc, sign in ((not_vir, 1), (act, -1)):
+            # Avoids double counting of the active part
+            tmp[:, slc] += lib.einsum("prtt,t,r->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
+            tmp[:, slc] -= lib.einsum("pttr,r,t->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
+            tmp[:, slc] += lib.einsum("prtt,r,t->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
+            tmp[:, slc] -= lib.einsum("pttr,t,r->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
+        a -= lib.einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
+
+        return a
+
     apb = np.zeros((p.size, p.size))
-    apb[triu] += a[p, q][:, r, s][triu]
-    apb[triu] += a[q, p][:, r, s][triu]
+    amb = np.zeros((p.size, p.size))
+    for p0 in range(0, norb, block_size):
+        p1 = min(p0 + block_size, norb)
+        a = _get_contribution(slice(p0, p1))
+
+        # For (p, q) contributions
+        imask = np.logical_and(p >= p0, p < p1)
+        pi = p[imask] - p0
+        qi = q[imask]
+
+        # For (q, p) contributions
+        jmask = np.logical_and(q >= p0, q < p1)
+        pj = p[jmask]
+        qj = q[jmask] - p0
+
+        apb[imask] += a[pi, qi][:, r, s]
+        apb[jmask] += a[qj, pj][:, r, s]
+        apb[jmask] += a[qj, pj][:, s, r]
+        apb[imask] += a[pi, qi][:, s, r]
+
+        amb[imask] += a[pi, qi][:, r, s]
+        amb[jmask] -= a[qj, pj][:, r, s]
+        amb[jmask] += a[qj, pj][:, s, r]
+        amb[imask] -= a[pi, qi][:, s, r]
+
     apb[tril] = apb.T[tril]
     m = np.add.outer(mo_occ_sqrt, mo_occ_sqrt)[p, q]
     m[m == 0] = 1
     apb /= np.multiply.outer(m, m)
 
-    # Find A-B
-    amb = np.zeros((p.size, p.size))
-    amb[triu] += a[p, q][:, r, s][triu]
-    amb[triu] -= a[q, p][:, r, s][triu]
     amb[tril] = amb.T[tril]
     m = np.subtract.outer(mo_occ_sqrt, mo_occ_sqrt)[p, q]
     m[m == 0] = 1
@@ -451,9 +481,23 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
     xm *= np.multiply.outer(m, m)
 
     # Calculate the energy
+    e_corr = 0.0
     block = scipy.linalg.block_diag(*[np.ones((n, n)) for n in [ncor, nact, nvir]])
-    eri_s4 = h2e[p, q][:, r, s] - lib.einsum("pqrs,pq,qr,rs->pqrs", h2e, block, block, block)[p, q][:, r, s]
-    e_corr = np.sum(xm * eri_s4)
+    for p0 in range(0, norb, block_size):
+        p1 = min(p0 + block_size, norb)
+
+        h2e = ao2mo.kernel(
+            mc._scf._eri,
+            (mc.mo_coeff[:, p0:p1], mc.mo_coeff, mc.mo_coeff, mc.mo_coeff),
+            compact=False,
+        ).reshape((p1 - p0, norb, norb, norb))
+        h2e -= lib.einsum("pqrs,pq,qr,rs->pqrs", h2e, block[p0:p1], block, block)
+
+        mask = np.logical_and(p >= p0, p < p1)
+        pi = p[mask] - p0
+        qi = q[mask]
+
+        e_corr += np.sum(xm[mask] * h2e[pi, qi][:, r, s])
 
     return e_corr
 
@@ -540,6 +584,7 @@ if __name__ == "__main__":
         (gto.M(atom="O 0 0 0; H 0 0 1; H 0 1 0", basis="sto3g", verbose=0), (2, 0)),
         (gto.M(atom="O 0 0 0; H 0 0 1; H 0 1 0", basis="cc-pvdz", verbose=0), (2, 0)),
         (gto.M(atom="O 0 0 0; O 0 0 1", basis="aug-cc-pvdz", verbose=0), (2, 0)),
+        #(gto.M(atom="O 0 0 0; O 0 0 1; O 0 0 2", basis="aug-cc-pvdz", verbose=0), (6, 6)),
     ]:
         mol.max_memory = 1e10
 
@@ -565,4 +610,4 @@ if __name__ == "__main__":
         m2 = max(memory_usage(f2, interval=1e-4))
 
         assert abs(e1 - e2) < 1e-10
-        print("old: %6.2f ms  %6.1f mb   new: %6.2f ms  %6.1f mb" % (t2 * 1000, m2, t1 * 1000, m1))
+        print("old: %6.2f ms  %6.1f mb   new: %6.2f ms  %6.1f mb" % (t2 * 1000, m2, t1 * 1000, m1), flush=True)
