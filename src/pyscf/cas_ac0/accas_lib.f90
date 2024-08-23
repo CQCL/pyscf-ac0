@@ -1061,7 +1061,7 @@ DO irow=1,noeig
 !     end of IP,IQ LOOPS
           END DO
         END DO
-        
+
 !     end icount
       END IF
 !     If IGem ....
@@ -1125,6 +1125,12 @@ ELSE
 
 !     end IFunSR
 END IF
+
+!print *, ""
+!do ipp=1,noeig
+!  write(*,"(100F10.6)") ( (abplus((ipp-1)*noeig+iqq)+abmin((ipp-1)*noeig+iqq))/2, iqq=1,noeig )
+!end do
+!print *, noeig
 
 RETURN
 END SUBROUTINE ab1_cas
@@ -1453,6 +1459,7 @@ DO iqq=1,nact
     END IF
   END DO
 END DO
+
 !print *, abmin
 IF(ndimb /= 0) THEN
       !Print *, 'ACT-KA',norm2(ABPLUS(1:NDimB**2)),norm2(ABMIN)
@@ -1464,6 +1471,17 @@ IF(ndimb /= 0) THEN
 ELSE
   !print *, 'ndimb == 0, whatever this means'
 END IF
+
+!print *, ""
+!write (*, "(100F10.6)") ( eig(nfree2+ip-1), ip=1,ndimb )
+!print *, ""
+!do ip=1,ndimb
+!  write (*, "(100F10.6)") ( eigx(nfree2+(ip-1)*ndimb+iq-1), iq=1,ndimb )
+!end do
+!print *, ""
+!do ip=1,ndimb
+!  write (*, "(100F10.6)") ( eigy(nfree2+(ip-1)*ndimb+iq-1), iq=1,ndimb )
+!end do
 
 noeig=noeig+ndimb
 nfree1=noeig+1
@@ -1710,6 +1728,14 @@ DO nu=1,noeig
   END DO
 END DO
 
+!do mu = 1,5
+!  write (*, "(100F10.6)"), ( abplus((mu-1)*noeig+nu), nu=1,5 )
+!end do
+!print *, ""
+!do mu = noeig-5,noeig
+!  write (*, "(100F10.6)"), ( abplus((mu-1)*noeig+nu), nu=noeig-5,noeig )
+!end do
+
 DO nu=1,noeig
   DO mu=1,noeig
 
@@ -1831,7 +1857,6 @@ DO i=1,noeig
 END DO
 
 ecorr=eall-eintra
-!PRINT*, 'EAll,EIntra',eall,eintra
 !print *, ecorr
 
 end subroutine ac0cas

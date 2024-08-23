@@ -161,19 +161,15 @@ def _build_act_cor_0(mc, h1e, rdm2):
     tmp = get_veff(mc, cor, cor)
     a += lib.einsum("pr,qq->qpr", np.diag(mo_occ[act]), tmp)
 
-    a += lib.einsum("utpr,qq,tu->qpr", h2e_aaaa, np.diag(mo_occ)[cor, cor], np.diag(mo_occ)[act, act]) * 2
-    a -= lib.einsum("utpr,qu,tq->qpr", h2e_aaaa, np.diag(mo_occ)[cor, act], np.diag(mo_occ)[act, cor])
-    a += lib.einsum("urpt,qu,tq->qpr", h2e_aaaa, np.diag(mo_occ)[cor, act], np.diag(mo_occ)[act, cor]) * 2
-    a -= lib.einsum("urpt,qq,tu->qpr", h2e_aaaa, np.diag(mo_occ)[cor, cor], np.diag(mo_occ)[act, act])
+    a += lib.einsum("ttpr,q,t->qpr", h2e_aaaa, mo_occ[cor], mo_occ[act]) * 2
+    a -= lib.einsum("trpt,q,t->qpr", h2e_aaaa, mo_occ[cor], mo_occ[act])
 
     w_aa = lib.einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
     w_aa += lib.einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
     a -= lib.einsum("pr,qq->qpr", w_aa, np.eye(ncor)) * 0.5
 
-    w_cc = lib.einsum("twpu,wt,ur->pr", h2e_cccc, np.diag(mo_occ[cor]), np.diag(mo_occ[cor])) * 2
-    w_cc -= lib.einsum("twpu,wr,ut->pr", h2e_cccc, np.diag(mo_occ[cor]), np.diag(mo_occ[cor]))
-    w_cc += lib.einsum("tupw,wr,ut->pr", h2e_cccc, np.diag(mo_occ[cor]), np.diag(mo_occ[cor])) * 2
-    w_cc -= lib.einsum("tupw,wt,ur->pr", h2e_cccc, np.diag(mo_occ[cor]), np.diag(mo_occ[cor]))
+    w_cc = lib.einsum("ttpr,t,r->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
+    w_cc -= lib.einsum("trpt,r,t->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
     a -= lib.einsum("pr,qq->qpr", np.eye(nact), w_cc) * 0.5
 
     apb = []
@@ -316,10 +312,8 @@ def _build_vir_cor_0(mc, h1e, rdm2):
     a = lib.einsum("pq,qq->pq", mo_occ_vir_cor_difs, h1e[cor, cor])
     a += lib.einsum("qp,pp->pq", mo_occ_cor_vir_difs, h1e[vir, vir])
 
-    w_cc = lib.einsum("twpu,wt,ur->pr", h2e_cccc, np.diag(mo_occ_cor), np.diag(mo_occ_cor)) * 2
-    w_cc -= lib.einsum("twpu,wr,ut->pr", h2e_cccc, np.diag(mo_occ_cor), np.diag(mo_occ_cor))
-    w_cc += lib.einsum("tupw,wr,ut->pr", h2e_cccc, np.diag(mo_occ_cor), np.diag(mo_occ_cor)) * 2
-    w_cc -= lib.einsum("tupw,wt,ur->pr", h2e_cccc, np.diag(mo_occ_cor), np.diag(mo_occ_cor))
+    w_cc = lib.einsum("ttpr,t,r->pr", h2e_cccc, mo_occ_cor, mo_occ_cor) * 4
+    w_cc -= lib.einsum("trpt,r,t->pr", h2e_cccc, mo_occ_cor, mo_occ_cor) * 2
     a -= lib.einsum("pp,qq->pq", np.eye(nvir), w_cc) * 0.5
 
     # Pack the A+B and A-B matrices
@@ -423,10 +417,10 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
     tmp[:, act] += lib.einsum("tuwp,wurt->pr", h2e[act, act, act, :], rdm2)
     for slc, sign in ((not_vir, 1), (act, -1)):
         # Avoids double counting of the active part
-        tmp[:, slc] += lib.einsum("twup,wt,ur->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * 2 * sign
-        tmp[:, slc] -= lib.einsum("twup,wr,ut->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * sign
-        tmp[:, slc] += lib.einsum("tuwp,wr,ut->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * 2 * sign
-        tmp[:, slc] -= lib.einsum("tuwp,wt,ur->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * sign
+        tmp[:, slc] += lib.einsum("ttrp,t,r->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * 2 * sign
+        tmp[:, slc] -= lib.einsum("trtp,r,t->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * sign
+        tmp[:, slc] += lib.einsum("ttrp,r,t->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * 2 * sign
+        tmp[:, slc] -= lib.einsum("trtp,t,r->pr", h2e[slc, slc, slc, :], mo_occ[slc], mo_occ[slc]) * sign
     a -= lib.einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
 
     # Symmetrise
