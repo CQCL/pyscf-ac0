@@ -387,70 +387,50 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
     h2e = ao2mo.kernel(mc._scf._eri, mc.mo_coeff, compact=False).reshape((norb,) * 4)
 
     # Contractions
-    tmp = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs, h1e, np.eye(norb))
-    a = tmp
-    a += tmp.transpose(1, 0, 3, 2)
+    a = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs, h1e, np.eye(norb))
 
     tmp = lib.einsum("pqrs,p,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
     tmp -= lib.einsum("prqs,p,r->pqrs", h2e[cor, not_cor, :, :], mo_occ[cor], mo_occ[not_cor])
     a[cor, :, not_cor, :] += tmp
-    a[:, cor, :, not_cor] += tmp.transpose(1, 0, 3, 2)
-    a[not_cor, :, cor, :] += tmp.transpose(2, 3, 0, 1)
     a[:, not_cor, :, cor] += tmp.transpose(3, 2, 1, 0)
 
     tmp = lib.einsum("qprs,q,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
     tmp -= lib.einsum("qsrp,q,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor])
     a[:, cor, not_cor, :] -= tmp
-    a[cor, :, :, not_cor] -= tmp.transpose(1, 0, 3, 2)
-    a[:, not_cor, cor, :] -= tmp.transpose(3, 2, 1, 0)
     a[not_cor, :, :, cor] -= tmp.transpose(2, 3, 0, 1)
 
-    tmp = lib.einsum("pqrs,p,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
-    tmp -= lib.einsum("prqs,p,r->pqrs", h2e[cor, cor, :, :], mo_occ[cor], mo_occ[cor])
-    a[cor, :, cor, :] += tmp
-    a[:, cor, :, cor] += tmp.transpose(1, 0, 3, 2)
+    a[cor, :, cor, :] += lib.einsum("pqrs,p,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
+    a[cor, :, cor, :] -= lib.einsum("prqs,p,r->pqrs", h2e[cor, cor, :, :], mo_occ[cor], mo_occ[cor])
 
-    tmp = lib.einsum("qprs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
-    tmp -= lib.einsum("rpqs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor])
-    a[:, cor, cor, :] -= tmp
-    a[cor, :, :, cor] -= tmp.transpose(1, 0, 3, 2)
+    a[:, cor, cor, :] -= lib.einsum("qprs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
+    a[:, cor, cor, :] += lib.einsum("rpqs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor])
 
-    tmp0 = lib.einsum("t,pqtt->pq", mo_occ[not_vir], h2e[:, :, not_vir, not_vir]) * 2  #FIXME
-    tmp0 -= lib.einsum("t,pttq->pq", mo_occ[not_vir], h2e[:, not_vir, not_vir, :])
-    tmp = lib.einsum("pr,qs->pqrs", np.diag(mo_occ[cor]), tmp0)
-    del tmp0
-    a[cor, :, cor, :] += tmp
-    a[:, cor, :, cor] += tmp.transpose(1, 0, 3, 2)
+    tmp = lib.einsum("t,pqtt->pq", mo_occ[not_vir], h2e[:, :, not_vir, not_vir]) * 2  #FIXME
+    tmp -= lib.einsum("t,pttq->pq", mo_occ[not_vir], h2e[:, not_vir, not_vir, :])
+    a[cor, :, cor, :] += lib.einsum("pr,qs->pqrs", np.diag(mo_occ[cor]), tmp)
 
-    tmp0 = lib.einsum("t,pqtt->pq", mo_occ[cor], h2e[:, :, cor, cor]) * 2  #FIXME
-    tmp0 -= lib.einsum("t,pttq->pq", mo_occ[cor], h2e[:, cor, cor, :])
-    tmp = lib.einsum("pr,qs->pqrs", np.diag(mo_occ[not_cor]), tmp0)
-    del tmp0
-    a[not_cor, :, not_cor, :] += tmp
-    a[:, not_cor, :, not_cor] += tmp.transpose(1, 0, 3, 2)
+    tmp = lib.einsum("t,pqtt->pq", mo_occ[cor], h2e[:, :, cor, cor]) * 2  #FIXME
+    tmp -= lib.einsum("t,pttq->pq", mo_occ[cor], h2e[:, cor, cor, :])
+    a[not_cor, :, not_cor, :] += lib.einsum("pr,qs->pqrs", np.diag(mo_occ[not_cor]), tmp)
 
-    tmp = lib.einsum("tusq,purt->pqrs", h2e[act, act, :, :], rdm2)
-    tmp += lib.einsum("ustq,putr->pqrs", h2e[act, :, act, :], rdm2)
-    a[act, :, act, :] += tmp
-    a[:, act, :, act] += tmp.transpose(1, 0, 3, 2)
+    a[act, :, act, :] += lib.einsum("tusq,purt->pqrs", h2e[act, act, :, :], rdm2)
+    a[act, :, act, :] += lib.einsum("ustq,putr->pqrs", h2e[act, :, act, :], rdm2)
 
-    tmp = lib.einsum("tpus,tuqr->pqrs", h2e[act, :, act, :], rdm2)
-    a[:, act, act, :] -= tmp
-    a[act, :, :, act] -= tmp.transpose(1, 0, 3, 2)
+    a[:, act, act, :] -= lib.einsum("tpus,tuqr->pqrs", h2e[act, :, act, :], rdm2)
 
-    tmp0 = np.zeros((norb, norb))
-    tmp0[:, act] += lib.einsum("twup,wutr->pr", h2e[act, act, act, :], rdm2)
-    tmp0[:, act] += lib.einsum("tuwp,wurt->pr", h2e[act, act, act, :], rdm2)
+    tmp = np.zeros((norb, norb))
+    tmp[:, act] += lib.einsum("twup,wutr->pr", h2e[act, act, act, :], rdm2)
+    tmp[:, act] += lib.einsum("tuwp,wurt->pr", h2e[act, act, act, :], rdm2)
     for slc, sign in ((not_vir, 1), (act, -1)):
         # Avoids double counting of the active part
-        tmp0[:, slc] += lib.einsum("twup,wt,ur->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * 2 * sign
-        tmp0[:, slc] -= lib.einsum("twup,wr,ut->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * sign
-        tmp0[:, slc] += lib.einsum("tuwp,wr,ut->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * 2 * sign
-        tmp0[:, slc] -= lib.einsum("tuwp,wt,ur->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * sign
-    tmp = lib.einsum("pr,qs->pqrs", tmp0, np.eye(norb)) * 0.5
-    del tmp0
-    a -= tmp
-    a -= tmp.transpose(1, 0, 3, 2)
+        tmp[:, slc] += lib.einsum("twup,wt,ur->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * 2 * sign
+        tmp[:, slc] -= lib.einsum("twup,wr,ut->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * sign
+        tmp[:, slc] += lib.einsum("tuwp,wr,ut->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * 2 * sign
+        tmp[:, slc] -= lib.einsum("tuwp,wt,ur->pr", h2e[slc, slc, slc, :], np.diag(mo_occ[slc]), np.diag(mo_occ[slc])) * sign
+    a -= lib.einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
+
+    # Symmetrise
+    a = a + a.transpose(1, 0, 3, 2)
 
     # Find A+B
     apb = np.zeros((p.size, p.size))
@@ -571,6 +551,7 @@ if __name__ == "__main__":
         (gto.M(atom="O 0 0 0; H 0 0 1; H 0 1 0", basis="cc-pvdz", verbose=0), (2, 0)),
         (gto.M(atom="O 0 0 0; O 0 0 1", basis="aug-cc-pvdz", verbose=0), (2, 0)),
     ]:
+        mol.max_memory = 1e10
 
         mf = scf.RHF(mol)
         mf.conv_tol = 1e-14
@@ -594,4 +575,4 @@ if __name__ == "__main__":
         m2 = max(memory_usage(f2, interval=1e-4))
 
         assert abs(e1 - e2) < 1e-10
-        print("old: %6.2f ms  %6.1f mb   new: %6.2f ms  %6.1f mb" % (t2 * 1000, m1, t1 * 1000, m2))
+        print("old: %6.2f ms  %6.1f mb   new: %6.2f ms  %6.1f mb" % (t2 * 1000, m2, t1 * 1000, m1))
