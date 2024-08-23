@@ -380,7 +380,6 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
     # Get the Hamiltonian blocks
     h2e = ao2mo.kernel(mc._scf._eri, mc.mo_coeff, compact=False).reshape((norb,) * 4)
 
-    # Contractions
     a = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs, h1e, np.eye(norb))
 
     tmp = lib.einsum("pqrs,p,r->pqrs", h2e[cor, :, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
@@ -399,17 +398,14 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0):
     a[:, cor, cor, :] -= lib.einsum("qprs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor]) * 2
     a[:, cor, cor, :] += lib.einsum("rpqs,q,r->pqrs", h2e[cor, :, cor, :], mo_occ[cor], mo_occ[cor])
 
-    tmp = lib.einsum("t,pqtt->pq", mo_occ[not_vir], h2e[:, :, not_vir, not_vir]) * 2  #FIXME
-    tmp -= lib.einsum("t,pttq->pq", mo_occ[not_vir], h2e[:, not_vir, not_vir, :])
+    tmp = get_veff(mc, internal=not_vir)
     a[cor, :, cor, :] += lib.einsum("pr,qs->pqrs", np.diag(mo_occ[cor]), tmp)
 
-    tmp = lib.einsum("t,pqtt->pq", mo_occ[cor], h2e[:, :, cor, cor]) * 2  #FIXME
-    tmp -= lib.einsum("t,pttq->pq", mo_occ[cor], h2e[:, cor, cor, :])
+    tmp = get_veff(mc, internal=cor)
     a[not_cor, :, not_cor, :] += lib.einsum("pr,qs->pqrs", np.diag(mo_occ[not_cor]), tmp)
 
     a[act, :, act, :] += lib.einsum("tusq,purt->pqrs", h2e[act, act, :, :], rdm2)
     a[act, :, act, :] += lib.einsum("ustq,putr->pqrs", h2e[act, :, act, :], rdm2)
-
     a[:, act, act, :] -= lib.einsum("tpus,tuqr->pqrs", h2e[act, :, act, :], rdm2)
 
     tmp = np.zeros((norb, norb))
