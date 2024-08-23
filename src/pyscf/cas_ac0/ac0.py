@@ -491,7 +491,8 @@ def _calculate_energy(mc, h1e, rdm2, w_0, x_0, y_0, block_size=16):
             (mc.mo_coeff[:, p0:p1], mc.mo_coeff, mc.mo_coeff, mc.mo_coeff),
             compact=False,
         ).reshape((p1 - p0, norb, norb, norb))
-        h2e -= lib.einsum("pqrs,pq,qr,rs->pqrs", h2e, block[p0:p1], block, block)
+        for slc in (cor, act, vir):
+            h2e[max(slc.start, p0) : min(slc.stop, p1), slc, slc, slc] = 0.0
 
         mask = np.logical_and(p >= p0, p < p1)
         pi = p[mask] - p0
