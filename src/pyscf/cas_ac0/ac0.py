@@ -2,6 +2,9 @@ from pyscf import lib, ao2mo
 import scipy.linalg
 import numpy as np
 import itertools
+import functools
+
+einsum = functools.partial(np.einsum, optimize=True)
 
 
 def eigxy(apb, amb):
@@ -16,11 +19,11 @@ def eigxy(apb, amb):
     v = v[:, mask]
 
     y = apb_sqrt @ v
-    norm = lib.einsum("ij,in,jn->n", amb, y, y)
+    norm = einsum("ij,in,jn->n", amb, y, y)
     norm = 2 * norm / w
     y /= np.sqrt(norm)[None]
 
-    x = lib.einsum("ij,jx,x->ix", amb, y, 1 / w)
+    x = einsum("ij,jx,x->ix", amb, y, 1 / w)
 
     return w, x, y
 
@@ -47,7 +50,7 @@ def _get_veff(mc):
 
     # Get the density matrices
     dm = np.array([
-        lib.einsum("i,pi,qi->pq", mc.mo_occ[slc], mc.mo_coeff[:, slc], mc.mo_coeff[:, slc])
+        einsum("i,pi,qi->pq", mc.mo_occ[slc], mc.mo_coeff[:, slc], mc.mo_coeff[:, slc])
         for slc in (cor, act, vir)
     ])
 
@@ -55,9 +58,26 @@ def _get_veff(mc):
     veff = mc._scf.get_veff(mc._scf._eri, dm)
 
     # Rotate the effective potential to the NO basis
-    veff = lib.einsum("...pq,pi,qj->...ij", veff, mc.mo_coeff, mc.mo_coeff)
+    veff = einsum("...pq,pi,qj->...ij", veff, mc.mo_coeff, mc.mo_coeff)
 
     return list(veff)
+
+
+def _ao2mo(mc, mo_coeff):
+    """Get the 2-electron integrals for a slice of the NO basis."""
+    if getattr(mc._scf, "with_df", None) is None:
+        eri = ao2mo.kernel(mc._scf._eri, mo_coeff, compact=False)
+        eri = eri.reshape((mo_coeff.shape[1],) * 4)
+    else:
+        eri = ao2mo._ao2mo.nr_e2(
+            mc._scf.with_df._cderi,
+            mo_coeff,
+            (0, mo_coeff.shape[1], 0, mo_coeff.shape[1]),
+            aosym="s2",
+            mosym="s1",
+        )
+        eri = eri.reshape(mc._scf.with_df.get_naoaux(), mo_coeff.shape[1], mo_coeff.shape[1])
+    return eri
 
 
 def _build_act_act_0(mc, h1e, rdm2):
@@ -82,20 +102,32 @@ def _build_act_act_0(mc, h1e, rdm2):
     mo_occ_difs = np.subtract.outer(mo_occ, mo_occ)
 
     # Get the Hamiltonian blocks
-    h2e_aaaa = ao2mo.kernel(mc._scf._eri, mo_coeff_act, compact=False).reshape((nact,) * 4)
+    h2e_aaaa = _ao2mo(mc, mo_coeff_act)
 
     # One-body terms
-    a = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs, h1e[act, act], np.eye(nact))
+    a = einsum("ps,qs,pr->pqrs", mo_occ_difs, h1e[act, act], np.eye(nact))
 
-    # Two-body terms
-    a += lib.einsum("sqtu,purt->pqrs", h2e_aaaa, rdm2)
-    a += lib.einsum("sutq,putr->pqrs", h2e_aaaa, rdm2)
-    a -= lib.einsum("ptsu,tuqr->pqrs", h2e_aaaa, rdm2)
+    if getattr(mc._scf, "with_df", None) is None:
+        # Two-body terms
+        a += einsum("sqtu,purt->pqrs", h2e_aaaa, rdm2)
+        a += einsum("sutq,putr->pqrs", h2e_aaaa, rdm2)
+        a -= einsum("ptsu,tuqr->pqrs", h2e_aaaa, rdm2)
 
-    # Two-body terms with identity
-    tmp = lib.einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
-    tmp += lib.einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
-    a -= lib.einsum("pr,qs->pqrs", tmp, np.eye(nact)) * 0.5
+        # Two-body terms with identity
+        tmp = einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
+        tmp += einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
+        a -= einsum("pr,qs->pqrs", tmp, np.eye(nact)) * 0.5
+
+    else:
+        # Two-body terms
+        a += einsum("Lsq,Ltu,purt->pqrs", h2e_aaaa, h2e_aaaa, rdm2)
+        a += einsum("Lsu,Ltq,putr->pqrs", h2e_aaaa, h2e_aaaa, rdm2)
+        a -= einsum("Lpt,Lsu,tuqr->pqrs", h2e_aaaa, h2e_aaaa, rdm2)
+
+        # Two-body terms with identity
+        tmp = einsum("Ltw,Lpu,wutr->pr", h2e_aaaa, h2e_aaaa, rdm2)
+        tmp += einsum("Ltu,Lpw,wurt->pr", h2e_aaaa, h2e_aaaa, rdm2)
+        a -= einsum("pr,qs->pqrs", tmp, np.eye(nact)) * 0.5
 
     # Symmetrise
     a += a.transpose(1, 0, 3, 2)
@@ -155,30 +187,44 @@ def _build_act_cor_0(mc, h1e, rdm2, veffs):
     mo_occ_difs = np.subtract.outer(mo_occ, mo_occ)
 
     # Get the Hamiltonian blocks
-    h2e_cccc = ao2mo.kernel(mc._scf._eri, mo_coeff_cor, compact=False).reshape((ncor,) * 4)
-    h2e_aaaa = ao2mo.kernel(mc._scf._eri, mo_coeff_act, compact=False).reshape((nact,) * 4)
+    h2e_cccc = _ao2mo(mc, mo_coeff_cor)
+    h2e_aaaa = _ao2mo(mc, mo_coeff_act)
 
     # Note: We only need A_{pqrq}, so re-order as A_{qpr} for efficiency
 
     # One-body terms
-    a = lib.einsum("pq,qq,pr->qpr", mo_occ_difs[act, cor], h1e[cor, cor], np.eye(nact))
-    a += lib.einsum("qr,pr,qq->qpr", mo_occ_difs[cor, act], h1e[act, act], np.eye(ncor))
+    a = einsum("pq,qq,pr->qpr", mo_occ_difs[act, cor], h1e[cor, cor], np.eye(nact))
+    a += einsum("qr,pr,qq->qpr", mo_occ_difs[cor, act], h1e[act, act], np.eye(ncor))
 
     # One-body terms with V_{eff}
     tmp = veffs[0][cor, cor]
-    a += lib.einsum("pr,qq->qpr", np.diag(mo_occ[act]), tmp)
+    a += einsum("pr,qq->qpr", np.diag(mo_occ[act]), tmp)
 
-    # Two-body terms
-    a += lib.einsum("ttpr,q,t->qpr", h2e_aaaa, mo_occ[cor], mo_occ[act]) * 2
-    a -= lib.einsum("trpt,q,t->qpr", h2e_aaaa, mo_occ[cor], mo_occ[act])
+    if getattr(mc._scf, "with_df", None) is None:
+        # Two-body terms
+        a += einsum("ttpr,q,t->qpr", h2e_aaaa, mo_occ[cor], mo_occ[act]) * 2
+        a -= einsum("trpt,q,t->qpr", h2e_aaaa, mo_occ[cor], mo_occ[act])
 
-    # Two-body terms with identity
-    tmp = lib.einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
-    tmp += lib.einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
-    a -= lib.einsum("pr,qq->qpr", tmp, np.eye(ncor)) * 0.5
-    tmp = lib.einsum("ttpr,t,r->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
-    tmp -= lib.einsum("trpt,r,t->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
-    a -= lib.einsum("pr,qq->qpr", np.eye(nact), tmp) * 0.5
+        # Two-body terms with identity
+        tmp = einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
+        tmp += einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
+        a -= einsum("pr,qq->qpr", tmp, np.eye(ncor)) * 0.5
+        tmp = einsum("ttpr,t,r->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
+        tmp -= einsum("trpt,r,t->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
+        a -= einsum("pr,qq->qpr", np.eye(nact), tmp) * 0.5
+
+    else:
+        # Two-body terms
+        a += einsum("Ltt,Lpr,q,t->qpr", h2e_aaaa, h2e_aaaa, mo_occ[cor], mo_occ[act]) * 2
+        a -= einsum("Ltr,Lpt,q,t->qpr", h2e_aaaa, h2e_aaaa, mo_occ[cor], mo_occ[act])
+
+        # Two-body terms with identity
+        tmp = einsum("Ltw,Lpu,wutr->pr", h2e_aaaa, h2e_aaaa, rdm2)
+        tmp += einsum("Ltu,Lpw,wurt->pr", h2e_aaaa, h2e_aaaa, rdm2)
+        a -= einsum("pr,qq->qpr", tmp, np.eye(ncor)) * 0.5
+        tmp = einsum("Ltt,Lpr,t,r->pr", h2e_cccc, h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
+        tmp -= einsum("Ltr,Lpt,r,t->pr", h2e_cccc, h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
+        a -= einsum("pr,qq->qpr", np.eye(nact), tmp) * 0.5
 
     apb = []
     amb = []
@@ -236,18 +282,25 @@ def _build_vir_act_0(mc, h1e, rdm2):
     mo_occ_difs = np.subtract.outer(mo_occ, mo_occ)
 
     # Get the Hamiltonian blocks
-    h2e_aaaa = ao2mo.kernel(mc._scf._eri, mo_coeff_act, compact=False).reshape((nact,) * 4)
+    h2e_aaaa = _ao2mo(mc, mo_coeff_act)
 
     # Note: We only need A_{pqps}, so re-order as A_{pqs} for efficiency
 
     # One-body terms
-    a = lib.einsum("ps,qs,pp->pqs", mo_occ_difs[vir, act], h1e[act, act], np.eye(nvir))
-    a += lib.einsum("qp,pp,sq->pqs", mo_occ_difs[act, vir], h1e[vir, vir], np.eye(nact))
+    a = einsum("ps,qs,pp->pqs", mo_occ_difs[vir, act], h1e[act, act], np.eye(nvir))
+    a += einsum("qp,pp,sq->pqs", mo_occ_difs[act, vir], h1e[vir, vir], np.eye(nact))
 
-    # Two-body terms with identity
-    tmp = lib.einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
-    tmp += lib.einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
-    a -= lib.einsum("pp,qs->pqs", np.eye(nvir), tmp) * 0.5
+    if getattr(mc._scf, "with_df", None) is None:
+        # Two-body terms with identity
+        tmp = einsum("twpu,wutr->pr", h2e_aaaa, rdm2)
+        tmp += einsum("tupw,wurt->pr", h2e_aaaa, rdm2)
+        a -= einsum("pp,qs->pqs", np.eye(nvir), tmp) * 0.5
+
+    else:
+        # Two-body terms with identity
+        tmp = einsum("Ltw,Lpu,wutr->pr", h2e_aaaa, h2e_aaaa, rdm2)
+        tmp += einsum("Ltu,Lpw,wurt->pr", h2e_aaaa, h2e_aaaa, rdm2)
+        a -= einsum("pp,qs->pqs", np.eye(nvir), tmp) * 0.5
 
     apb = []
     amb = []
@@ -303,18 +356,25 @@ def _build_vir_cor_0(mc, h1e, rdm2):
     mo_occ_difs = np.subtract.outer(mo_occ, mo_occ)
 
     # Get the Hamiltonian blocks
-    h2e_cccc = ao2mo.kernel(mc._scf._eri, mo_coeff_cor, compact=False).reshape((ncor,) * 4)
+    h2e_cccc = _ao2mo(mc, mo_coeff_cor)
 
     # Note: We only need A_{pqpq}, so re-order as A_{pq} for efficiency
 
     # One-body terms
-    a = lib.einsum("pq,qq->pq", mo_occ_difs[vir, cor], h1e[cor, cor])
-    a += lib.einsum("qp,pp->pq", mo_occ_difs[cor, vir], h1e[vir, vir])
+    a = einsum("pq,qq->pq", mo_occ_difs[vir, cor], h1e[cor, cor])
+    a += einsum("qp,pp->pq", mo_occ_difs[cor, vir], h1e[vir, vir])
 
-    # Two-body terms with identity
-    tmp = lib.einsum("ttpr,t,r->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
-    tmp -= lib.einsum("trpt,r,t->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
-    a -= lib.einsum("pp,qq->pq", np.eye(nvir), tmp) * 0.5
+    if getattr(mc._scf, "with_df", None) is None:
+        # Two-body terms with identity
+        tmp = einsum("ttpr,t,r->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
+        tmp -= einsum("trpt,r,t->pr", h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
+        a -= einsum("pp,qq->pq", np.eye(nvir), tmp) * 0.5
+
+    else:
+        # Two-body terms with identity
+        tmp = einsum("Ltt,Lpr,t,r->pr", h2e_cccc, h2e_cccc, mo_occ[cor], mo_occ[cor]) * 4
+        tmp -= einsum("Ltr,Lpt,r,t->pr", h2e_cccc, h2e_cccc, mo_occ[cor], mo_occ[cor]) * 2
+        a -= einsum("pp,qq->pq", np.eye(nvir), tmp) * 0.5
 
     # Pack the A+B and A-B matrices
     apb = amb = [np.array([[x]]) for x in a.ravel()]
@@ -374,50 +434,50 @@ def _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0, block_size=16):
             compact=False,
         ).reshape((p.stop - p.start, norb, norb, norb))
 
-        a = lib.einsum("ps,qs,pr->pqrs", mo_occ_difs[p], h1e, np.eye(norb)[p])
+        a = einsum("ps,qs,pr->pqrs", mo_occ_difs[p], h1e, np.eye(norb)[p])
 
-        tmp = lib.einsum("pqrs,q,s->pqrs", h2e[:, cor, :, not_cor], mo_occ[cor], mo_occ[not_cor]) * 2
-        tmp -= lib.einsum("prqs,q,s->pqrs", h2e[:, :, cor, not_cor], mo_occ[cor], mo_occ[not_cor])
+        tmp = einsum("pqrs,q,s->pqrs", h2e[:, cor, :, not_cor], mo_occ[cor], mo_occ[not_cor]) * 2
+        tmp -= einsum("prqs,q,s->pqrs", h2e[:, :, cor, not_cor], mo_occ[cor], mo_occ[not_cor])
         a[:, cor, :, not_cor] += tmp
 
-        tmp = lib.einsum("pqrs,q,s->pqrs", h2e[:, not_cor, :, cor], mo_occ[not_cor], mo_occ[cor]) * 2
-        tmp -= lib.einsum("prqs,q,s->pqrs", h2e[:, :, not_cor, cor], mo_occ[not_cor], mo_occ[cor])
+        tmp = einsum("pqrs,q,s->pqrs", h2e[:, not_cor, :, cor], mo_occ[not_cor], mo_occ[cor]) * 2
+        tmp -= einsum("prqs,q,s->pqrs", h2e[:, :, not_cor, cor], mo_occ[not_cor], mo_occ[cor])
         a[:, not_cor, :, cor] += tmp
 
-        tmp = lib.einsum("pqrs,q,r->pqrs", h2e[:, cor, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
-        tmp -= lib.einsum("prsq,q,r->pqrs", h2e[:, not_cor, :, cor], mo_occ[cor], mo_occ[not_cor])
+        tmp = einsum("pqrs,q,r->pqrs", h2e[:, cor, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
+        tmp -= einsum("prsq,q,r->pqrs", h2e[:, not_cor, :, cor], mo_occ[cor], mo_occ[not_cor])
         a[:, cor, not_cor, :] -= tmp
 
-        tmp = lib.einsum("pqrs,q,r->pqrs", h2e[:, not_cor, cor, :], mo_occ[not_cor], mo_occ[cor]) * 2
-        tmp -= lib.einsum("prsq,q,r->pqrs", h2e[:, cor, :, not_cor], mo_occ[not_cor], mo_occ[cor])
+        tmp = einsum("pqrs,q,r->pqrs", h2e[:, not_cor, cor, :], mo_occ[not_cor], mo_occ[cor]) * 2
+        tmp -= einsum("prsq,q,r->pqrs", h2e[:, cor, :, not_cor], mo_occ[not_cor], mo_occ[cor])
         a[:, not_cor, cor, :] -= tmp
 
-        a[:, cor, :, cor] += lib.einsum("pqrs,q,s->pqrs", h2e[:, cor, :, cor], mo_occ[cor], mo_occ[cor]) * 2
-        a[:, cor, :, cor] -= lib.einsum("prqs,q,s->pqrs", h2e[:, :, cor, cor], mo_occ[cor], mo_occ[cor])
+        a[:, cor, :, cor] += einsum("pqrs,q,s->pqrs", h2e[:, cor, :, cor], mo_occ[cor], mo_occ[cor]) * 2
+        a[:, cor, :, cor] -= einsum("prqs,q,s->pqrs", h2e[:, :, cor, cor], mo_occ[cor], mo_occ[cor])
 
-        a[:, cor, cor, :] -= lib.einsum("pqrs,q,r->pqrs", h2e[:, cor, cor, :], mo_occ[cor], mo_occ[cor]) * 2
-        a[:, cor, cor, :] += lib.einsum("prsq,q,r->pqrs", h2e[:, cor, :, cor], mo_occ[cor], mo_occ[cor])
+        a[:, cor, cor, :] -= einsum("pqrs,q,r->pqrs", h2e[:, cor, cor, :], mo_occ[cor], mo_occ[cor]) * 2
+        a[:, cor, cor, :] += einsum("prsq,q,r->pqrs", h2e[:, cor, :, cor], mo_occ[cor], mo_occ[cor])
 
         tmp = veffs[0][p, :] + veffs[1][p, :]
-        a[:, cor, :, cor] += lib.einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[cor]))
+        a[:, cor, :, cor] += einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[cor]))
 
         tmp = veffs[0][p, :]
-        a[:, not_cor, :, not_cor] += lib.einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[not_cor]))
+        a[:, not_cor, :, not_cor] += einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[not_cor]))
 
-        a[:, act, :, act] += lib.einsum("prtu,qust->pqrs", h2e[:, :, act, act], rdm2)
-        a[:, act, :, act] += lib.einsum("ptur,quts->pqrs", h2e[:, act, act, :], rdm2)
-        a[:, act, act, :] -= lib.einsum("ptus,tuqr->pqrs", h2e[:, act, act, :], rdm2)
+        a[:, act, :, act] += einsum("prtu,qust->pqrs", h2e[:, :, act, act], rdm2)
+        a[:, act, :, act] += einsum("ptur,quts->pqrs", h2e[:, act, act, :], rdm2)
+        a[:, act, act, :] -= einsum("ptus,tuqr->pqrs", h2e[:, act, act, :], rdm2)
 
         tmp = np.zeros((p.stop - p.start, norb))
-        tmp[:, act] += lib.einsum("putw,wutr->pr", h2e[:, act, act, act], rdm2)
-        tmp[:, act] += lib.einsum("pwtu,wurt->pr", h2e[:, act, act, act], rdm2)
+        tmp[:, act] += einsum("putw,wutr->pr", h2e[:, act, act, act], rdm2)
+        tmp[:, act] += einsum("pwtu,wurt->pr", h2e[:, act, act, act], rdm2)
         for slc, sign in ((not_vir, 1), (act, -1)):
             # Avoids double counting of the active part
-            tmp[:, slc] += lib.einsum("prtt,t,r->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
-            tmp[:, slc] -= lib.einsum("pttr,r,t->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
-            tmp[:, slc] += lib.einsum("prtt,r,t->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
-            tmp[:, slc] -= lib.einsum("pttr,t,r->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
-        a -= lib.einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
+            tmp[:, slc] += einsum("prtt,t,r->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
+            tmp[:, slc] -= einsum("pttr,r,t->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
+            tmp[:, slc] += einsum("prtt,r,t->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
+            tmp[:, slc] -= einsum("pttr,t,r->pr", h2e[:, slc, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
+        a -= einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
 
         return a
 
@@ -490,6 +550,168 @@ def _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0, block_size=16):
     return e_corr
 
 
+def _calculate_energy_df(mc, h1e, rdm2, veffs, w_0, x_0, y_0, block_size=16):
+    """Build a block of the α=1 A+B and A-B matrices with density fitting.
+
+    Args:
+        mc: The CASSCF object.
+        h1e: The 1-electron α=1 Hamiltonian in a basis of natural orbitals.
+        rdm2: The 2-particle CAS reduced density matrix in a basis of natural orbitals, for the
+            active space.
+        veffs: The contributions to the effective potential.
+        w_0: The eigenvalues of the α=0 A+B and A-B matrices.
+        x_0: The X eigenvectors of the α=0 A+B and A-B matrices.
+        y_0: The Y eigenvectors of the α=0 A+B and A-B matrices.
+        block_size: The size of the blocks to iterate over. Lower sizes will use less memory but
+            may be slower.
+    """
+    # Get the spaces
+    ncor = mc.ncore
+    nact = mc.ncas
+    nvir = mc.mo_occ.size - ncor - nact
+    norb = mc.mo_occ.size
+    cor = slice(0, ncor)
+    act = slice(ncor, ncor + nact)
+    vir = slice(ncor + nact, norb)
+    not_cor = slice(ncor, norb)
+    not_vir = slice(0, ncor + nact)
+
+    # Get the occupancy measures
+    mo_occ = mc.mo_occ * 0.5
+    mo_occ_sqrt = np.sqrt(mo_occ)
+    mo_occ_sqrt[mo_occ < 0.5] *= -1
+    mo_occ_difs = np.subtract.outer(mo_occ, mo_occ)
+
+    # Get the index helpers
+    pairs = np.abs(mo_occ_difs) > 1e-8
+    pq = sorted((p, q) for q, p in itertools.combinations(range(act.start, act.stop), 2))
+    pq += [x[::-1] for x in itertools.product(range(cor.start, cor.stop), range(act.start, act.stop))]
+    pq += list(itertools.product(range(vir.start, vir.stop), range(act.start, act.stop)))
+    pq += list(itertools.product(range(vir.start, vir.stop), range(cor.start, cor.stop)))
+    pq = [(p, q) for p, q in pq if pairs[p, q]]
+    p = np.array([x[0] for x in pq])
+    q = np.array([x[1] for x in pq])
+    tril = np.tril_indices(p.size)
+    triu = np.triu_indices(p.size)
+
+    # Get the density-fitted integrals
+    h2e = _ao2mo(mc, mc.mo_coeff)
+
+    def _get_contribution(p):
+        # Get the Hamiltonian blocks
+        a = einsum("ps,qs,pr->pqrs", mo_occ_difs[p], h1e, np.eye(norb)[p])
+
+        tmp = einsum("Lpq,Lrs,q,s->pqrs", h2e[:, p, cor], h2e[:, :, not_cor], mo_occ[cor], mo_occ[not_cor]) * 2
+        tmp -= einsum("Lpr,Lqs,q,s->pqrs", h2e[:, p, :], h2e[:, cor, not_cor], mo_occ[cor], mo_occ[not_cor])
+        a[:, cor, :, not_cor] += tmp
+
+        tmp = einsum("Lpq,Lrs,q,s->pqrs", h2e[:, p, not_cor], h2e[:, :, cor], mo_occ[not_cor], mo_occ[cor]) * 2
+        tmp -= einsum("Lpr,Lqs,q,s->pqrs", h2e[:, p, :], h2e[:, not_cor, cor], mo_occ[not_cor], mo_occ[cor])
+        a[:, not_cor, :, cor] += tmp
+
+        tmp = einsum("Lpq,Lrs,q,r->pqrs", h2e[:, p, cor], h2e[:, not_cor, :], mo_occ[cor], mo_occ[not_cor]) * 2
+        tmp -= einsum("Lpr,Lsq,q,r->pqrs", h2e[:, p, not_cor], h2e[:, :, cor], mo_occ[cor], mo_occ[not_cor])
+        a[:, cor, not_cor, :] -= tmp
+
+        tmp = einsum("Lpq,Lrs,q,r->pqrs", h2e[:, p, not_cor], h2e[:, cor, :], mo_occ[not_cor], mo_occ[cor]) * 2
+        tmp -= einsum("Lpr,Lsq,q,r->pqrs", h2e[:, p, cor], h2e[:, :, not_cor], mo_occ[not_cor], mo_occ[cor])
+        a[:, not_cor, cor, :] -= tmp
+
+        a[:, cor, :, cor] += einsum("Lpq,Lrs,q,s->pqrs", h2e[:, p, cor], h2e[:, :, cor], mo_occ[cor], mo_occ[cor]) * 2
+        a[:, cor, :, cor] -= einsum("Lpr,Lqs,q,s->pqrs", h2e[:, p, :], h2e[:, cor, cor], mo_occ[cor], mo_occ[cor])
+
+        a[:, cor, cor, :] -= einsum("Lpq,Lrs,q,r->pqrs", h2e[:, p, cor], h2e[:, cor, :], mo_occ[cor], mo_occ[cor]) * 2
+        a[:, cor, cor, :] += einsum("Lpr,Lsq,q,r->pqrs", h2e[:, p, cor], h2e[:, :, cor], mo_occ[cor], mo_occ[cor])
+
+        tmp = veffs[0][p, :] + veffs[1][p, :]
+        a[:, cor, :, cor] += einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[cor]))
+
+        tmp = veffs[0][p, :]
+        a[:, not_cor, :, not_cor] += einsum("pr,qs->pqrs", tmp, np.diag(mo_occ[not_cor]))
+
+        a[:, act, :, act] += einsum("Lpr,Ltu,qust->pqrs", h2e[:, p, :], h2e[:, act, act], rdm2)
+        a[:, act, :, act] += einsum("Lpt,Lur,quts->pqrs", h2e[:, p, act], h2e[:, act, :], rdm2)
+        a[:, act, act, :] -= einsum("Lpt,Lus,tuqr->pqrs", h2e[:, p, act], h2e[:, act, :], rdm2)
+
+        tmp = np.zeros((p.stop - p.start, norb))
+        tmp[:, act] += einsum("Lpu,Ltw,wutr->pr", h2e[:, p, act], h2e[:, act, act], rdm2)
+        tmp[:, act] += einsum("Lpw,Ltu,wurt->pr", h2e[:, p, act], h2e[:, act, act], rdm2)
+        for slc, sign in ((not_vir, 1), (act, -1)):
+            # Avoids double counting of the active part
+            tmp[:, slc] += einsum("Lpr,Ltt,t,r->pr", h2e[:, p, slc], h2e[:, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
+            tmp[:, slc] -= einsum("Lpt,Ltr,r,t->pr", h2e[:, p, slc], h2e[:, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
+            tmp[:, slc] += einsum("Lpr,Ltt,r,t->pr", h2e[:, p, slc], h2e[:, slc, slc], mo_occ[slc], mo_occ[slc]) * 2 * sign
+            tmp[:, slc] -= einsum("Lpt,Ltr,t,r->pr", h2e[:, p, slc], h2e[:, slc, slc], mo_occ[slc], mo_occ[slc]) * sign
+        a -= einsum("pr,qs->pqrs", tmp, np.eye(norb)) * 0.5
+
+        return a
+
+    apb = np.zeros((p.size, p.size))
+    amb = np.zeros((p.size, p.size))
+    for p0 in range(0, norb, block_size):
+        p1 = min(p0 + block_size, norb)
+        a = _get_contribution(slice(p0, p1))
+
+        # For (p, q) contributions
+        imask = np.logical_and(p >= p0, p < p1)
+        pi = p[imask] - p0
+        qi = q[imask]
+
+        # For (q, p) contributions
+        jmask = np.logical_and(q >= p0, q < p1)
+        pj = p[jmask]
+        qj = q[jmask] - p0
+
+        apb[imask] += a[pi, qi][:, p, q]
+        apb[jmask] += a[qj, pj][:, p, q]
+        apb[jmask] += a[qj, pj][:, q, p]
+        apb[imask] += a[pi, qi][:, q, p]
+
+        amb[imask] += a[pi, qi][:, p, q]
+        amb[jmask] -= a[qj, pj][:, p, q]
+        amb[jmask] += a[qj, pj][:, q, p]
+        amb[imask] -= a[pi, qi][:, q, p]
+
+    apb[tril] = apb.T[tril]
+    m = np.add.outer(mo_occ_sqrt, mo_occ_sqrt)[p, q]
+    m[m == 0] = 1
+    apb /= np.multiply.outer(m, m)
+
+    amb[tril] = amb.T[tril]
+    m = np.subtract.outer(mo_occ_sqrt, mo_occ_sqrt)[p, q]
+    m[m == 0] = 1
+    amb /= np.multiply.outer(m, m)
+
+    # Rotate the A+B and A-B matrices into the X and Y basis
+    apb = x_0.T @ apb @ x_0
+    amb = y_0.T @ amb @ y_0
+
+    # Find the perturbative term
+    xm = 2 * (apb - amb) / np.add.outer(w_0, w_0)
+    xm = y_0 @ xm @ y_0.T
+    m = np.add.outer(mo_occ_sqrt, mo_occ_sqrt)[p, q]
+    xm *= np.multiply.outer(m, m)
+
+    # Calculate the energy
+    e_corr = 0.0
+    block = scipy.linalg.block_diag(*[np.ones((n, n)) for n in [ncor, nact, nvir]])
+    for p0 in range(0, norb, block_size):
+        p1 = min(p0 + block_size, norb)
+
+        # TODO can we avoid this?
+        h2e_4c = einsum("Lpq,Lrs->pqrs", h2e[:, p0:p1], h2e)
+        for slc in (cor, act, vir):
+            h2e_4c[max(slc.start, p0) : min(slc.stop, p1), slc, slc, slc] = 0.0
+
+        mask = np.logical_and(p >= p0, p < p1)
+        pi = p[mask] - p0
+        qi = q[mask]
+
+        e_corr += np.sum(xm[mask] * h2e_4c[pi, qi][:, p, q])
+
+    return e_corr
+
+
 def run(mf, mc):
     nact = mc.ncas
     nelec = mc.nelecas
@@ -506,7 +728,7 @@ def run(mf, mc):
     vir = slice(ncor + nact, norb)
 
     # Get the 1-electron Hamiltonian
-    hcore = lib.einsum("pq,pi,qj->ij", mf.get_hcore(), mc.mo_coeff, mc.mo_coeff)
+    hcore = einsum("pq,pi,qj->ij", mf.get_hcore(), mc.mo_coeff, mc.mo_coeff)
     veffs = _get_veff(mc)
     fock = hcore + veffs[0] + veffs[1] + veffs[2]
     rdm2 = rdm2.transpose(1, 3, 0, 2) * 0.5
@@ -554,7 +776,10 @@ def run(mf, mc):
                 h1e[eslc, eslc] -= veffs[i][eslc, eslc]
 
     # Calculate the energy
-    e_corr = _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0)
+    if getattr(mf, "with_df", None) is None:
+        e_corr = _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0)
+    else:
+        e_corr = _calculate_energy_df(mc, h1e, rdm2, veffs, w_0, x_0, y_0)
 
     return e_corr
 
@@ -565,13 +790,14 @@ if __name__ == "__main__":
     from pyscf import gto, scf, mcscf
     from pyscf.cas_ac0.accas import get_cas_ac0_energy
 
+    print(f"               | {'time (ms)':^26s} | {'memory (ms)':^26s}")
+    print(f"ncor nact nvir | {'old':>8s} {'new':>8s} {'new df':>8s} | {'old':>8s} {'new':>8s} {'new df':>8s}")
     for mol, cas in [
         (gto.M(atom="O 0 0 0; H 0 0 1; H 0 1 0", basis="6-31g", verbose=0), (6, 4)),
         (gto.M(atom="Li 0 0 0; H 0 0 2", basis="sto3g", verbose=0), (4, 2)),
         (gto.M(atom="Li 0 0 0; H 0 0 2", basis="cc-pvdz", verbose=0), (4, 2)),
         (gto.M(atom="Li 0 0 0; Li 0 0 2", basis="6-31g", verbose=0), (6, 6)),
         (gto.M(atom="O 0 0 0; H 0 0 1; H 0 1 0", basis="sto3g", verbose=0), (2, 0)),
-        (gto.M(atom="O 0 0 0; H 0 0 1; H 0 1 0", basis="cc-pvdz", verbose=0), (2, 0)),
         (gto.M(atom="O 0 0 0; O 0 0 1", basis="aug-cc-pvdz", verbose=0), (2, 0)),
         #(gto.M(atom="O 0 0 0; O 0 0 1; O 0 0 2", basis="aug-cc-pvdz", verbose=0), (6, 6)),
     ]:
@@ -581,10 +807,19 @@ if __name__ == "__main__":
         mf.conv_tol = 1e-14
         mf.kernel()
 
+        mf_df = scf.RHF(mol).density_fit()
+        mf_df.conv_tol = 1e-14
+        mf_df.kernel()
+
         mc = mcscf.CASSCF(mf, *cas)
         mc.fcisolver.conv_tol = 1e-10
         mc.natorb = True
         mc.kernel()
+
+        mc_df = mcscf.CASSCF(mf_df, *cas)
+        mc_df.fcisolver.conv_tol = 1e-10
+        mc_df.natorb = True
+        mc_df.kernel()
 
         f1 = lambda: run(mf, mc) + mc.e_tot
         t0 = time.time()
@@ -598,5 +833,13 @@ if __name__ == "__main__":
         t2 = time.time() - t0
         m2 = max(memory_usage(f2, interval=1e-4))
 
+        f3 = lambda: run(mf_df, mc_df) + mc_df.e_tot
+        t0 = time.time()
+        e3 = f3()
+        t3 = time.time() - t0
+        m3 = max(memory_usage(f3, interval=1e-4))
+
         assert abs(e1 - e2) < 1e-10
-        print("old: %6.2f ms  %6.1f mb   new: %6.2f ms  %6.1f mb" % (t2 * 1000, m2, t1 * 1000, m1), flush=True)
+        assert abs(e3 - e2) < 1e-2
+        #print("old: %6.2f ms  %6.1f mb   new: %6.2f ms  %6.1f mb   new (df): %6.2f ms  %6.1f mb" % (t2 * 1000, m2, t1 * 1000, m1, t3 * 1000, m3))
+        print(f"{cas[0]:4d} {cas[1]:4d} {mol.nao - cas[0] - cas[1]:4d} | {t2 * 1000:8.2f} {t1 * 1000:8.2f} {t3 * 1000:8.2f} | {m2:8.1f} {m1:8.1f} {m3:8.1f}")
