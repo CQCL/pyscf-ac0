@@ -493,7 +493,7 @@ def _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0, block_size=16):
     return e_corr
 
 
-def run(mf, mc):
+def run(mf, mc, block_size=16):
     nact = mc.ncas
     nelec = mc.nelecas
 
@@ -557,7 +557,7 @@ def run(mf, mc):
                 h1e[eslc, eslc] -= veffs[i][eslc, eslc]
 
     # Calculate the energy
-    e_corr = _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0)
+    e_corr = _calculate_energy(mc, h1e, rdm2, veffs, w_0, x_0, y_0, block_size=block_size)
 
     return e_corr
 
