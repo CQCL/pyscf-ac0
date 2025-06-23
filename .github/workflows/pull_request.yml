@@ -34,7 +34,7 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y gfortran
+          sudo apt-get install -y gfortran libblas-dev liblapack-dev
           echo "FC=gfortran" >> $GITHUB_ENV
           python -m pip install --upgrade pip
           python -m pip install -v .
