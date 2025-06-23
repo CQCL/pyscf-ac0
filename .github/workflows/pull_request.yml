@@ -25,12 +25,17 @@ jobs:
       - name: Install pyscf-ac0
         if: ${{ runner.os == 'macOS' }}
         run: |
+          brew install gcc
+          echo "FC=$(brew --prefix)/bin/gfortran" >> $GITHUB_ENV
           python -m pip install --upgrade pip
-          python -m pip install -v . -Ccmake.args="-DCMAKE_C_COMPILER=clang; -DCMAKE_Fortran_COMPILER=gfortran-11"
+          python -m pip install -v .
 
       - name: Install pyscf-ac0
         if: ${{ runner.os == 'Linux' }}
         run: |
+          sudo apt-get update
+          sudo apt-get install -y gfortran libblas-dev liblapack-dev
+          echo "FC=gfortran" >> $GITHUB_ENV
           python -m pip install --upgrade pip
           python -m pip install -v .
 
