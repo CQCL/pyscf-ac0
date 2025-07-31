@@ -126,6 +126,7 @@ def get_ac0_corr_energy_from_file(filename: str):
     nbasis = natural_orbitals.shape[1]
     rdm2_nat = ac0.trrdm2(dm2, ucas.T, ucas.shape[0])  # transform to NO basis
 
+    integrals = ao2mo.restore(1, integrals, nbasis)
     integrals = integrals.reshape([nbasis] * 4)
     twono = ac0.get_two_el(integrals, ac0.get_two_el_size(nbasis), nbasis)
     occ = nat_occ / 2.0
